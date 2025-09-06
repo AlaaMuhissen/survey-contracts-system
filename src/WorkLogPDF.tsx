@@ -1,7 +1,7 @@
 import React from "react";
 
 import {
-  Document, Page, Text, View, StyleSheet, Svg, Path, pdf, Font
+  Document, Page, Text, View, StyleSheet, Svg, Path, pdf, Font,
 } from "@react-pdf/renderer";
 import type { Stroke, SigMeta } from "./SignaturePad";
 
@@ -106,7 +106,27 @@ function LinedAreaPDF({
 
 
 
+function normalizeStrokes(strokes: Stroke[]) {
+  if (!strokes || strokes.length === 0) return { d: "", w: 1, h: 1 };
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const s of strokes) for (const p of s) {
+    if (p.x < minX) minX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y > maxY) maxY = p.y;
+  }
+  if (!isFinite(minX) || !isFinite(minY)) return { d: "", w: 1, h: 1 };
+  const w = Math.max(1, maxX - minX);
+  const h = Math.max(1, maxY - minY);
 
+  const parts: string[] = [];
+  for (const s of strokes) {
+    if (s.length === 0) continue;
+    parts.push(`M ${s[0].x - minX} ${s[0].y - minY}`);
+    for (let i = 1; i < s.length; i++) parts.push(`L ${s[i].x - minX} ${s[i].y - minY}`);
+  }
+  return { d: parts.join(" "), w, h };
+}
 
 function strokesToPath(strokes: Stroke[]): string {
   const parts: string[] = [];
@@ -140,6 +160,8 @@ export async function generateWorkLogPdfBlob(
 ) {
   const mPath = strokesToPath(sigManager);
   const lPath = strokesToPath(sigLead);
+  const m = normalizeStrokes(sigManager);
+const l = normalizeStrokes(sigLead);
   // למעלה בקובץ (אפשר גם בתוך הפונקציה)
 const todayHe = new Date().toLocaleDateString("he-IL");
 const dateToShow = form.date?.trim() ? form.date : todayHe;
@@ -269,23 +291,23 @@ const dateToShow = form.date?.trim() ? form.date : todayHe;
         <LinedAreaPDF label="תיאור עבודה" value={form.workDesc} rows={8} />
         <LinedAreaPDF label="הערות" value={form.notes} rows={5} />
 
-        {/* Signatures (unchanged; still vector) */}
-        <View style={{ flexDirection: "row-reverse", gap: 24, marginTop: 16 }}>
-          <View style={{ flex: 1 }}>
-            <Svg width="100%" height="70" viewBox={`0 0 ${Math.max(sigMeta.w,1)} ${Math.max(sigMeta.h,1)}`}>
-              <Path d={mPath || "M 0 0"} stroke="#000" strokeWidth={2} fill="none" />
-            </Svg>
-            <View style={{ borderTopWidth: 1, borderColor: "#000", marginTop: 2 }} />
-            <Text style={{ textAlign: "center" }}>חתימת מנהל</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Svg width="100%" height="70" viewBox={`0 0 ${Math.max(sigMeta.w,1)} ${Math.max(sigMeta.h,1)}`}>
-              <Path d={lPath || "M 0 0"} stroke="#000" strokeWidth={2} fill="none" />
-            </Svg>
-            <View style={{ borderTopWidth: 1, borderColor: "#000", marginTop: 2 }} />
-            <Text style={{ textAlign: "center" }}>חתימת ראש צוות</Text>
-          </View>
-        </View>
+<View style={{ flexDirection: "row-reverse", gap: 24, marginTop: 16 }}>
+  <View style={{ flex: 1 }}>
+    <Svg width="100%" height="70" viewBox={`0 0 ${m.w} ${m.h}`}>
+      <Path d={m.d || "M 0 0"} stroke="#000" strokeWidth={2} fill="none" />
+    </Svg>
+    <View style={{ borderTopWidth: 1, borderColor: "#000", marginTop: 2 }} />
+    <Text style={{ textAlign: "center" }}>חתימת מנהל</Text>
+  </View>
+
+  <View style={{ flex: 1 }}>
+    <Svg width="100%" height="70" viewBox={`0 0 ${l.w} ${l.h}`}>
+      <Path d={l.d || "M 0 0"} stroke="#000" strokeWidth={2} fill="none" />
+    </Svg>
+    <View style={{ borderTopWidth: 1, borderColor: "#000", marginTop: 2 }} />
+    <Text style={{ textAlign: "center" }}>חתימת ראש צוות</Text>
+  </View>
+</View>
 
         {/* Watermark */}
         <View style={{ position: "absolute", left: 0, right: 0, top: "45%", alignItems: "center", opacity: 0.1 }}>

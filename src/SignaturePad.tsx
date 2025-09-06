@@ -50,6 +50,7 @@ export default function SignaturePad({ strokes, setStrokes, setMeta, height = 12
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+
   // redraw after strokes change (e.g., clear)
   useLayoutEffect(() => {
     fitToSize();
