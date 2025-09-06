@@ -39,7 +39,7 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",   // baseline on the bottom line
   },
   valueTextRtl: {
-    width: "78%",            // ⬅️ crucial: let text span the whole line
+    width: "77%",            // ⬅️ crucial: let text span the whole line
     textAlign: "right",       // ⬅️ now right-align works
     direction: "rtl", 
     marginRight : 30       // ⬅️ bidi shaping & punctuation placement
@@ -75,7 +75,7 @@ function LinedAreaPDF({
   return (
     <View wrap={false} style={{ marginBottom: 15 }}>
       {/* Label */}
-      <Text style={{ textAlign: "right" }}>{label}</Text>
+      <Text style={{fontSize: 12, fontWeight: "bold", textAlign: "right"}}>{label}</Text>
 
       {/* Rows */}
       {Array.from({ length: rows }).map((_, i) => (
