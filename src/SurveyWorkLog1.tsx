@@ -1,5 +1,6 @@
 
-import React, { useRef, useState } from "react";
+import React, { useRef, useState ,useEffect} from "react";
+import { sendOrQueue, setupOnlineDrain } from "./sendWorkLog";
 // ⬇️ no html2canvas/jsPDF needed
 // import html2canvas from "html2canvas";
 // import jsPDF from "jspdf";
@@ -53,8 +54,39 @@ const flushMicro = () =>
 export default function SurveyWorkLog1() {
   const pageRef = useRef<HTMLDivElement | null>(null);
   const isDesktop = useIsDesktop();
-  const flushFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
+  useEffect(() => {
+  setupOnlineDrain();
+}, []);
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js");
+  });
+}
+
+// להסיר את ההכרזה הכפולה:
+const flushFrame = () => new Promise<void>((r) => requestAnimationFrame(() => r()));
 const flushMicro = () => new Promise<void>((r) => setTimeout(r, 0));
+
+// כפתור "שמור ל-חברה (Firebase)"
+const saveToFirebase = async () => {
+  await flushFrame();
+  await flushMicro();
+  const blob = await generateWorkLogPdfBlob(form, sigManager, sigLead, sigMeta);
+
+  const meta = {
+    ...form,
+    clientDevice: navigator.userAgent,
+    createdAt: Date.now(),
+  };
+
+  const result = await sendOrQueue(meta, blob);
+  if (result.queued) {
+    alert("אין אינטרנט כרגע. נשמר בתור ויישלח אוטומטית כשתחזרי לאונליין ✅");
+  } else {
+    alert("נשמר בהצלחה ל-Firebase ✅");
+  }
+};
+
   const [form, setForm] = useState<WorkLogForm>({
     src: "מקור",
     number: "01190",
@@ -73,7 +105,7 @@ const flushMicro = () => new Promise<void>((r) => setTimeout(r, 0));
   const [sigManager, setSigManager] = useState<Stroke[]>([]);
   const [sigLead, setSigLead] = useState<Stroke[]>([]);
   const [sigMeta, setSigMeta] = useState<SigMeta>({ w: 600, h: 120 }); // default; updated by SignaturePad
-
+  
   const setField =
     (k: keyof WorkLogForm) =>
     (v: string) =>
@@ -189,6 +221,10 @@ const flushMicro = () => new Promise<void>((r) => setTimeout(r, 0));
           >
             שלח במייל
           </button>
+          <button onClick={saveToFirebase} className="rounded-xl border px-3 py-1 hover:bg-neutral-50">
+  שמור ל-Firebase
+</button>
+
         </div>
 
         {/* 📱 Regular phone form */}

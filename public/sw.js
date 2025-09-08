@@ -1,34 +1,54 @@
-const CACHE = 'worklog-cache-v1';
+const APP_CACHE = "app-shell-v1";
+const ASSET_CACHE = "assets-v1";
 
-// Install: warm basic routes (optional, you can leave it empty)
-self.addEventListener('install', (event) => {
+// We’ll precache just the HTML entry and then runtime-cache everything else on first use
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(APP_CACHE).then((cache) => cache.addAll(["/", "/index.html"]))
+  );
   self.skipWaiting();
-  event.waitUntil(caches.open(CACHE).then((c) => c.addAll([
-    '/',            // if your app serves index.html at /
-  ]).catch(() => {})));
 });
 
-// Activate: clean old caches
-self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)));
-    await self.clients.claim();
-  })());
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) =>
+      Promise.all(keys.filter(k => ![APP_CACHE, ASSET_CACHE].includes(k)).map(k => caches.delete(k)))
+    )
+  );
+  self.clients.claim();
 });
 
-// Runtime cache: stale-while-revalidate for same-origin GET
-self.addEventListener('fetch', (event) => {
+// Offline-first for navigations (SPA): serve cached index.html
+self.addEventListener("fetch", (event) => {
   const req = event.request;
-  if (req.method !== 'GET' || new URL(req.url).origin !== self.location.origin) return;
+  const url = new URL(req.url);
 
-  event.respondWith((async () => {
-    const cache = await caches.open(CACHE);
-    const cached = await cache.match(req);
-    const fetchPromise = fetch(req).then((res) => {
-      if (res && res.status === 200 && res.type === 'basic') cache.put(req, res.clone());
-      return res;
-    }).catch(() => cached); // offline → use cached if exists
-    return cached || fetchPromise;
-  })());
+  // Only handle GET
+  if (req.method !== "GET") return;
+
+  // SPA navigations
+  if (req.mode === "navigate") {
+    event.respondWith(
+      fetch(req).catch(() => caches.match("/index.html"))
+    );
+    return;
+  }
+
+  // Same-origin static assets (js, css, images, fonts): Cache First
+  if (url.origin === location.origin &&
+      ["script","style","image","font"].includes(req.destination)) {
+    event.respondWith(
+      caches.open(ASSET_CACHE).then(async (cache) => {
+        const cached = await cache.match(req);
+        if (cached) return cached;
+        try {
+          const res = await fetch(req);
+          cache.put(req, res.clone());
+          return res;
+        } catch {
+          return cached || Response.error();
+        }
+      })
+    );
+  }
 });

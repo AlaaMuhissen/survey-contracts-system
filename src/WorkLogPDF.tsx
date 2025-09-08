@@ -128,15 +128,15 @@ function normalizeStrokes(strokes: Stroke[]) {
   return { d: parts.join(" "), w, h };
 }
 
-function strokesToPath(strokes: Stroke[]): string {
-  const parts: string[] = [];
-  for (const s of strokes) {
-    if (!s.length) continue;
-    parts.push(`M ${s[0].x} ${s[0].y}`);
-    for (let i = 1; i < s.length; i++) parts.push(`L ${s[i].x} ${s[i].y}`);
-  }
-  return parts.join(" ");
-}
+// function strokesToPath(strokes: Stroke[]): string {
+//   const parts: string[] = [];
+//   for (const s of strokes) {
+//     if (!s.length) continue;
+//     parts.push(`M ${s[0].x} ${s[0].y}`);
+//     for (let i = 1; i < s.length; i++) parts.push(`L ${s[i].x} ${s[i].y}`);
+//   }
+//   return parts.join(" ");
+// }
 
 export type WorkLogForm = {
   src: string;
@@ -158,13 +158,12 @@ export async function generateWorkLogPdfBlob(
   sigLead: Stroke[],
   sigMeta: SigMeta,
 ) {
-  const mPath = strokesToPath(sigManager);
-  const lPath = strokesToPath(sigLead);
+
   const m = normalizeStrokes(sigManager);
-const l = normalizeStrokes(sigLead);
-  // למעלה בקובץ (אפשר גם בתוך הפונקציה)
-const todayHe = new Date().toLocaleDateString("he-IL");
-const dateToShow = form.date?.trim() ? form.date : todayHe;
+  const l = normalizeStrokes(sigLead);
+    // למעלה בקובץ (אפשר גם בתוך הפונקציה)
+  const todayHe = new Date().toLocaleDateString("he-IL");
+  const dateToShow = form.date?.trim() ? form.date : todayHe;
 
 
   const doc = (
