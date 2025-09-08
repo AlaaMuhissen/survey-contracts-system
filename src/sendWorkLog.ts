@@ -1,6 +1,6 @@
 import { enqueue, drain, removeById } from "./offlineQueue";
 
-const ENDPOINT = "http://localhost:8080/worklogs/upload-json";
+const ENDPOINT = "https://survey-contracts-system-backend.onrender.com";
 
 export async function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
