@@ -1,8 +1,11 @@
 import { enqueue, drain, removeById } from "./offlineQueue";
 
-const ENDPOINT = "https://survey-contracts-system-backend.onrender.com";
+
+const ENDPOINT = "https://survey-contracts-system-backend.onrender.com/worklogs/upload-json";
+
 
 export async function blobToBase64(blob: Blob): Promise<string> {
+  console.log("blobToBase64", blob);
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = reject;
@@ -17,14 +20,17 @@ async function postJson(url: string, body: any) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+   console.log(ENDPOINT)
+   console.log(res.status)
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 export async function sendOrQueue(meta: any, pdfBlob: Blob) {
+  console.log("sendOrQueue", meta, pdfBlob);
   const pdfBase64 = await blobToBase64(pdfBlob);
   const item = { id: `${meta.number || "no-num"}_${Date.now()}`, meta, pdfBase64 };
-
+  console.log(ENDPOINT)
   // ניסיון אונליין מיידי
   try {
     await postJson(ENDPOINT, { meta, pdfBase64 });
@@ -32,6 +38,7 @@ export async function sendOrQueue(meta: any, pdfBlob: Blob) {
   } catch {
     // בלי אינטרנט/נכשל – לתור
     await enqueue(item);
+
     return { queued: true, ok: true };
   }
 }
