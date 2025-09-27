@@ -128,23 +128,18 @@ function normalizeStrokes(strokes: Stroke[]) {
   return { d: parts.join(" "), w, h };
 }
 
-// function strokesToPath(strokes: Stroke[]): string {
-//   const parts: string[] = [];
-//   for (const s of strokes) {
-//     if (!s.length) continue;
-//     parts.push(`M ${s[0].x} ${s[0].y}`);
-//     for (let i = 1; i < s.length; i++) parts.push(`L ${s[i].x} ${s[i].y}`);
-//   }
-//   return parts.join(" ");
-// }
+
 
 export type WorkLogForm = {
   src: string;
   number: string;
-  date: string;
+  date: Date;
+  companyId?: string;
   company: string;
+  projectId?: string;
   project: string;
   manager: string;
+  dayType?: "full" | "half";
   teamLead: string;
   helper1: string;
   helper2: string;
@@ -162,10 +157,18 @@ export async function generateWorkLogPdfBlob(
   const m = normalizeStrokes(sigManager);
   const l = normalizeStrokes(sigLead);
     // למעלה בקובץ (אפשר גם בתוך הפונקציה)
-  const todayHe = new Date().toLocaleDateString("he-IL");
-  const dateToShow = form.date?.trim() ? form.date : todayHe;
 
-
+  const formatDMY = (val: string | Date | undefined) => {
+  let d: Date;
+  if (typeof val === "string") d = new Date(val + "T00:00:00"); // avoid TZ issues
+  else d = val instanceof Date ? val : new Date();
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
+};
+const dayTypeText = form.dayType === "half" ? "חצי יום" : "יום מלא";
+const dayColor = form.dayType === "half" ? "#F59E0B" : "#059669"; // amber / emerald
   const doc = (
     <Document>
       {/* ✅ direction: 'rtl' ensures correct Hebrew shaping/order */}
@@ -241,37 +244,54 @@ export async function generateWorkLogPdfBlob(
 
         {/* Date */}
         {/* שורת תאריך – RTL, מיושר ימין, עם ברירת מחדל */}
-        <View
-        style={{
-            flexDirection: "row-reverse",
-            alignItems: "flex-end",
-            marginBottom: 8,
-        }}
-        >
-        {/* תווית "תאריך" בצד ימין */}
-        <Text style={{ fontSize: 10, marginLeft: 6 }}>תאריך</Text>
 
-        {/* תיבה עם קו תחתון בצד שמאל של התווית */}
-        <View
+  {/* Date (right) + DayType badge (left) in one row */}
+      <View
+        style={{
+          flexDirection: "row-reverse",
+          alignItems: "center",
+          justifyContent: "space-between",
+          marginBottom: 8,
+        }}
+      >
+        {/* RIGHT group: label + underlined value */}
+        <View style={{ flexDirection: "row-reverse", alignItems: "flex-end" }}>
+          {/* Label */}
+          <Text style={{ fontSize: 10, marginRight: 2 ,marginLeft: 6 }}>תאריך</Text>
+
+          {/* Underlined value box */}
+          <View
             style={{
-            borderBottomWidth: 0.5,
-            borderColor: "#000",
-            width: 90,              // רוחב קבוע הכי פשוט
-            paddingRight: 2,        // רווח קטן מהקצה הימני של התיבה
-            justifyContent: "flex-end",
+              borderBottomWidth: 0.5,
+              borderBottomColor: "#000",
+              width: 110,        // tweak as you like
+              paddingBottom: 2,
+              justifyContent: "flex-end",
             }}
-        >
-            <Text
-            style={{
-                width: "100%",        // חובה כדי ש-textAlign יעבוד
-                textAlign: "right",
-                direction: "rtl",
-            }}
-            >
-            {dateToShow}
+          >
+            <Text style={{ width: "100%", textAlign: "right", fontSize: 10 }}>
+              {formatDMY(form.date)}
             </Text>
+          </View>
         </View>
+
+        {/* LEFT: dayType badge */}
+        <View
+          style={{
+            // simple pill
+            backgroundColor: dayColor,       // e.g. "#059669" full / "#F59E0B" half
+            borderRadius: 9999,
+            paddingVertical: 3,
+            paddingHorizontal: 8,
+            marginLeft: 12,
+          }}
+        >
+          <Text style={{ fontSize: 10, color: "#fff" }}>
+            {dayTypeText /* "יום מלא" / "חצי יום" */}
+          </Text>
         </View>
+      </View>
+
 
 
         {/* Company */}

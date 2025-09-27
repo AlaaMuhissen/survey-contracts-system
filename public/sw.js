@@ -1,7 +1,10 @@
-const APP_CACHE = "app-shell-v1";
-const ASSET_CACHE = "assets-v1";
+// public/sw.js
 
-// We’ll precache just the HTML entry and then runtime-cache everything else on first use
+// 1) עדכן את המספר בכל דיפלוי (אפשר ידני, או תן תאריך)
+const VERSION = "v2025-09-12-01"; // ← תגדיל אחד בכל דיפלוי
+const APP_CACHE = `app-shell-${VERSION}`;
+const ASSET_CACHE = `assets-${VERSION}`;
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(APP_CACHE).then((cache) => cache.addAll(["/", "/index.html"]))
@@ -12,31 +15,49 @@ self.addEventListener("install", (event) => {
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(keys.filter(k => ![APP_CACHE, ASSET_CACHE].includes(k)).map(k => caches.delete(k)))
+      Promise.all(
+        keys
+          .filter((k) => ![APP_CACHE, ASSET_CACHE].includes(k))
+          .map((k) => caches.delete(k))
+      )
     )
   );
   self.clients.claim();
 });
 
-// Offline-first for navigations (SPA): serve cached index.html
 self.addEventListener("fetch", (event) => {
   const req = event.request;
-  const url = new URL(req.url);
-
-  // Only handle GET
   if (req.method !== "GET") return;
 
-  // SPA navigations
-  if (req.mode === "navigate") {
+  const isSameOrigin = new URL(req.url).origin === self.location.origin;
+
+  // 2) network-first ל־HTML/JS/CSS
+  const isDoc = req.mode === "navigate" || req.destination === "document";
+  const isAsset =
+    req.destination === "script" || req.destination === "style";
+
+  if ((isDoc || isAsset) && isSameOrigin) {
     event.respondWith(
-      fetch(req).catch(() => caches.match("/index.html"))
+      (async () => {
+        try {
+          const res = await fetch(req);
+          const cache = await caches.open(ASSET_CACHE);
+          cache.put(req, res.clone());
+          return res;
+        } catch {
+          // offline fallback
+          const cached = await caches.match(req);
+          if (cached) return cached;
+          if (isDoc) return caches.match("/index.html");
+          return Response.error();
+        }
+      })()
     );
     return;
   }
 
-  // Same-origin static assets (js, css, images, fonts): Cache First
-  if (url.origin === location.origin &&
-      ["script","style","image","font"].includes(req.destination)) {
+  // 3) שאר קבצים סטטיים (תמונות/פונטים) – cache-first
+  if (isSameOrigin && ["image", "font"].includes(req.destination)) {
     event.respondWith(
       caches.open(ASSET_CACHE).then(async (cache) => {
         const cached = await cache.match(req);

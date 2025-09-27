@@ -1,8 +1,9 @@
 import { enqueue, drain, removeById } from "./offlineQueue";
 
 
-const ENDPOINT = "https://survey-contracts-system-backend.onrender.com/worklogs/upload-json";
+const ENDPOINT = "http://localhost:8080/worklogs/upload-json";
 
+export type QueuedItem = { id: string; meta: any; pdfBase64: string };
 
 export async function blobToBase64(blob: Blob): Promise<string> {
   console.log("blobToBase64", blob);
@@ -27,31 +28,44 @@ async function postJson(url: string, body: any) {
 }
 
 export async function sendOrQueue(meta: any, pdfBlob: Blob) {
-  console.log("sendOrQueue", meta, pdfBlob);
   const pdfBase64 = await blobToBase64(pdfBlob);
-  const item = { id: `${meta.number || "no-num"}_${Date.now()}`, meta, pdfBase64 };
-  console.log(ENDPOINT)
-  // ניסיון אונליין מיידי
-  try {
-    await postJson(ENDPOINT, { meta, pdfBase64 });
-    return { queued: false, ok: true };
-  } catch {
-    // בלי אינטרנט/נכשל – לתור
-    await enqueue(item);
+  const item = { id: `${meta.number || "TEMP"}_${Date.now()}`, meta, pdfBase64 };
 
-    return { queued: true, ok: true };
+  try {
+    const resp = await postJson(ENDPOINT, { meta, pdfBase64 });
+    return { queued: false, resp };
+  } catch (e) {
+    await enqueue(item);
+    return { queued: true, resp: null };
   }
 }
 
+
 // קריאה בהתחברות מחדש
-export function setupOnlineDrain() {
+export function setupOnlineDrain(
+  onItemSynced?: (resp: any, item: QueuedItem) => void
+) {
   const tryDrain = () =>
     drain(async (item) => {
-      await postJson(ENDPOINT, { meta: item.meta, pdfBase64: item.pdfBase64 });
+      // שולחים לשרת את הפריט מהתור
+      const resp = await postJson(ENDPOINT, {
+        meta: item.meta,
+        pdfBase64: item.pdfBase64,
+      });
+
+      // מוחקים מהתור רק אחרי הצלחה
       await removeById(item.id);
+
+      // מעדכנים את הפרונט עם התשובה (למשל number סידורי)
+      onItemSynced?.(resp, item);
     });
 
+  // נרשמים לאירועים שמריצים ריקון אוטומטי
   window.addEventListener("online", tryDrain);
-  // אפשר גם לנסות פעם אחת עם טעינת האפליקציה
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") tryDrain();
+  });
+
+  // נסיון ראשוני (נניח שהטאב נטען כשהרשת חזרה)
   tryDrain();
 }
