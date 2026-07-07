@@ -2,7 +2,7 @@ import React, { use, useEffect, useMemo, useState } from "react";
 import AsyncButton from "./components/AsyncButton";
 import { useNavigate, useParams } from "react-router-dom";
 import { Company, Project } from "./types";
-const API = (import.meta as any).env?.VITE_BACKEND_URL || "http://localhost:8080";
+const API = (import.meta as any).env?.VITE_BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
 
 
 

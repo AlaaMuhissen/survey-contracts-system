@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { WorkLogForm } from "../utils/pdf/WorkLogPDF";
 
-const API_BASE = process.env.BACKEND_URL || "http://localhost:8080";
+const API_BASE = process.env.BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
 
 export default function WorkerProfileModal({
   onClose,

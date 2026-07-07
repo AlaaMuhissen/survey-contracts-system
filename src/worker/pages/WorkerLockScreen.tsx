@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE =  "http://localhost:8080";
+const API_BASE =  "https://survey-contracts-system-backend.onrender.com";
 
 export default function WorkerLockScreen() {
   const nav = useNavigate();

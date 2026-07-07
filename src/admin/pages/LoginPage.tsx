@@ -3,7 +3,7 @@ import React from "react";
 import LockScreen from "../components/LockScreen"; // <- your LockScreen component from before
 import { useNavigate } from "react-router-dom";
 
-const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
+const API = process.env.NEXT_PUBLIC_API_URL || "https://survey-contracts-system-backend.onrender.com";
 
 export default function LoginPage({
   onSuccess,

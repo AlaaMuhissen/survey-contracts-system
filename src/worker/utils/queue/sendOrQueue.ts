@@ -3,7 +3,7 @@ import { enqueue, drain } from "./offlineQueue";
 
 
 const API =
-  (import.meta as any).env?.VITE_BACKEND_URL || "http://localhost:8080";
+  (import.meta as any).env?.VITE_BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
 
 const endpoint = (surveyId: string , companyId?: string, projectId?: string) =>
   `${API.replace(/\/+$/,'')}/surveys/${encodeURIComponent(surveyId)}/companies/${encodeURIComponent(companyId || "")}/projects/${encodeURIComponent(projectId || "")}/workLogs/upload-json`;

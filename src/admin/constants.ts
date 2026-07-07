@@ -1,5 +1,5 @@
 export const API: string =
-  (import.meta as any).env?.VITE_BACKEND_URL || "http://localhost:8080";
+  (import.meta as any).env?.VITE_BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
 export const FIREBASE_API_KEY: string =
   (import.meta as any).env?.VITE_FIREBASE_API_KEY || "AIzaSyBPM4PrmvXJ8d8Go3U-AyJBlJkVFKcHpHs"; 
 export const FIREBASE_AUTH_DOMAIN: string =

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { loadSurveyFromCache, saveSurveyToCache } from "../../data/surveyStore";
 
-const API_BASE = process.env.BACKEND_URL || "http://localhost:8080";
+const API_BASE = process.env.BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
 
 type Survey = {
   name?: string;

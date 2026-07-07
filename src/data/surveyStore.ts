@@ -1,6 +1,6 @@
 import localforage from "localforage";
 
-const API = (import.meta as any).env?.VITE_BACKEND_URL || "http://localhost:8080"; 
+const API = (import.meta as any).env?.VITE_BACKEND_URL || "https://survey-contracts-system-backend.onrender.com"; 
 
 type Survey = {
   name?: string;

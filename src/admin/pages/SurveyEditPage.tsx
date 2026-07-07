@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { AdminProfile } from "../types";
 
-const API_BASE = process.env.BACKEND_URL || "http://localhost:8080";
+const API_BASE = process.env.BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
 
 type Survey = {
   id?: string;

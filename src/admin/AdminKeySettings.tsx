@@ -1,6 +1,6 @@
 import React, { useEffect, useState ,useCallback} from "react";
 
-const API = "http://localhost:8080";
+const API = "https://survey-contracts-system-backend.onrender.com";
 
 export default function AdminKeySettings() {
   const [currentKey, setCurrentKey] = useState(localStorage.getItem("adminToken") || "");

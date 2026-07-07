@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Worker } from "../types";
 import AddWorkerModal from "../components/AddWorkerModal";
-const API_BASE = process.env.BACKEND_URL || "http://localhost:8080";
+const API_BASE = process.env.BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
 
 
 export default function WorkersPage() {
