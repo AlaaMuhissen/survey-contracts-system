@@ -1,18 +1,34 @@
 import React from "react";
-import { Company, Project } from "../types";
+import { Company, Project, PrivateClient } from "../types";
 import AsyncButton from "./AsyncButton";
+import CompanyProjectTree from "./Companyprojecttree";
+import PrivateClientChecklist from "./Privateclientchecklist";
+
 
 export default function ReportsToolbar({
-  companies, projects, allProjects,
-  companyId, setCompanyId, projectId, setProjectId,
+  companies, projectsByCompany, privateClients,
+  checkedCompanyIds, checkedProjectIds,
+  companyState, toggleCompany, toggleProject,
+  masterCompanyState, toggleAllCompanies,
+  checkedPrivateClientIds, togglePrivateClient,
+  masterPrivateState, toggleAllPrivateClients,
   from, setFrom, to, setTo,
   onLoad, onOpenJson, onDownloadXlsx, loading,
 }: {
   companies: Company[];
-  projects: Project[];
-  allProjects: Project[];
-  companyId: string; setCompanyId: (v: string) => void;
-  projectId: string; setProjectId: (v: string) => void;
+  projectsByCompany: Map<string, Project[]>;
+  privateClients: PrivateClient[];
+  checkedCompanyIds: string[];
+  checkedProjectIds: string[];
+  companyState: (companyId: string) => "all" | "some" | "none";
+  toggleCompany: (companyId: string) => void;
+  toggleProject: (companyId: string, projectId: string) => void;
+  masterCompanyState: "all" | "some" | "none";
+  toggleAllCompanies: () => void;
+  checkedPrivateClientIds: string[];
+  togglePrivateClient: (id: string) => void;
+  masterPrivateState: "all" | "some" | "none";
+  toggleAllPrivateClients: () => void;
   from: string; setFrom: (v: string) => void;
   to: string; setTo: (v: string) => void;
   onLoad: () => void;
@@ -20,86 +36,77 @@ export default function ReportsToolbar({
   onDownloadXlsx: () => void;
   loading: boolean;
 }) {
-  const projectList = companyId ? projects : (allProjects.length ? allProjects : projects);
-  console.log(' ReportsToolbar render', {projects});
-  console.log(' allProjects', {allProjects});
   return (
     <div
-      className="mb-4 grid grid-cols-1 md:grid-cols-5 gap-3 items-end
+      className="mb-4 flex flex-col gap-3
                  sticky top-0 z-10 bg-white/80 backdrop-blur background-gradient-to-b from-indigo-50 to-white
                  rounded-xl p-3 border"
     >
-      <div>
-        <label className="block text-xs mb-1">חברה</label>
-        <select
-          className="border rounded-lg px-3 py-2 w-full"
-          value={companyId}
-          onChange={(e) => setCompanyId(e.target.value)}
-        >
-          <option value="">כל החברות</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <CompanyProjectTree
+          companies={companies}
+          projectsByCompany={projectsByCompany}
+          companyState={companyState}
+          toggleCompany={toggleCompany}
+          toggleProject={toggleProject}
+          checkedProjectIds={checkedProjectIds}
+          masterState={masterCompanyState}
+          toggleAll={toggleAllCompanies}
+        />
 
-      <div>
-        <label className="block text-xs mb-1">פרויקט</label>
-        <select
-          className="border rounded-lg px-3 py-2 w-full"
-          value={projectId}
-          onChange={(e) => setProjectId(e.target.value)}
-          disabled={projects.length === 0 && !allProjects.length}
-        >
-          <option value="">{companyId ? "כל הפרויקטים בחברה" : "כל הפרויקטים"}</option>
-          {projectList.map((p) => (
-            <option key={p.id} value={p.id}>{p.name}</option>
-          ))}
-        </select>
-      </div>
-
-      <div>
-        <label className="block text-xs mb-1">מתאריך</label>
-        <input
-          type="date"
-          className="border rounded-lg px-3 py-2 w-full"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
+        <PrivateClientChecklist
+          privateClients={privateClients}
+          checkedIds={checkedPrivateClientIds}
+          onToggle={togglePrivateClient}
+          masterState={masterPrivateState}
+          toggleAll={toggleAllPrivateClients}
         />
       </div>
 
-      <div>
-        <label className="block text-xs mb-1">עד תאריך</label>
-        <input
-          type="date"
-          className="border rounded-lg px-3 py-2 w-full"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-        />
-      </div>
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+        <div>
+          <label className="block text-xs mb-1 text-neutral-600">מתאריך</label>
+          <input
+            type="date"
+            className="border rounded-lg px-3 py-2 w-full text-sm"
+            value={from}
+            onChange={(e) => setFrom(e.target.value)}
+          />
+        </div>
 
-      <div className="flex gap-2">
-        <button
-          className="rounded-lg border px-3 py-2 grow inline-flex items-center gap-2 text-sm
-                bg-white backdrop-blur shadow-sm
-                transition
-                focus:outline-none focus:ring-2 focus:ring-indigo-300/60 
-                text-black/80 hover:bg-black/80 hover:text-white"
-          onClick={onLoad}
-          disabled={loading}
-        >
-          {loading ? "טוען..." : "הצג בטבלה"}
-        </button>
-        <AsyncButton
-          className="rounded-lg border px-3 py-2 grow inline-flex items-center gap-2 text-sm
-                bg-white  backdrop-blur shadow-sm
-                transition
-                focus:outline-none focus:ring-2 focus:ring-indigo-300/60 
-                text-black/80 hover:bg-black/80 hover:text-white"
-          onClick={onDownloadXlsx}
-        >
-          הורד
-        </AsyncButton>
+        <div>
+          <label className="block text-xs mb-1 text-neutral-600">עד תאריך</label>
+          <input
+            type="date"
+            className="border rounded-lg px-3 py-2 w-full text-sm"
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+          />
+        </div>
+
+        <div className="flex gap-2 md:col-span-2">
+          <button
+            className="rounded-lg border px-3 py-2 grow inline-flex items-center justify-center gap-2 text-sm
+                  bg-white backdrop-blur shadow-sm
+                  transition
+                  focus:outline-none focus:ring-2 focus:ring-indigo-300/60 
+                  text-black/80 hover:bg-black/80 hover:text-white"
+            onClick={onLoad}
+            disabled={loading}
+          >
+            {loading ? "טוען..." : "הצג בטבלה"}
+          </button>
+          <AsyncButton
+            className="rounded-lg border px-3 py-2 grow inline-flex items-center justify-center gap-2 text-sm
+                  bg-white  backdrop-blur shadow-sm
+                  transition
+                  focus:outline-none focus:ring-2 focus:ring-indigo-300/60 
+                  text-black/80 hover:bg-black/80 hover:text-white"
+            onClick={onDownloadXlsx}
+          >
+            הורד
+          </AsyncButton>
+        </div>
       </div>
     </div>
   );

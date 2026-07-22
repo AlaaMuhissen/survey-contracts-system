@@ -16,9 +16,12 @@ export default function ReportsPage() {
   );
   
   const {
-    companies, projects, allProjects,
-    companyId, setCompanyId,
-    projectId, setProjectId,
+    companies, projectsByCompany, privateClients,
+    checkedCompanyIds, checkedProjectIds,
+    companyState, toggleCompany, toggleProject,
+    masterCompanyState, toggleAllCompanies,
+    checkedPrivateClientIds, togglePrivateClient,
+    masterPrivateState, toggleAllPrivateClients,
     from, setFrom, to, setTo,
     report, loading, err,
     loadReport, openJson, downloadXlsx,
@@ -54,12 +57,19 @@ export default function ReportsPage() {
        
         <ReportsToolbar
           companies={companies}
-          projects={projects}
-          allProjects={allProjects}
-          companyId={companyId}
-          setCompanyId={setCompanyId}
-          projectId={projectId}
-          setProjectId={setProjectId}
+          projectsByCompany={projectsByCompany}
+          privateClients={privateClients}
+          checkedCompanyIds={checkedCompanyIds}
+          checkedProjectIds={checkedProjectIds}
+          companyState={companyState}
+          toggleCompany={toggleCompany}
+          toggleProject={toggleProject}
+          masterCompanyState={masterCompanyState}
+          toggleAllCompanies={toggleAllCompanies}
+          checkedPrivateClientIds={checkedPrivateClientIds}
+          togglePrivateClient={togglePrivateClient}
+          masterPrivateState={masterPrivateState}
+          toggleAllPrivateClients={toggleAllPrivateClients}
           from={from}
           setFrom={setFrom}
           to={to}
@@ -81,4 +91,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-

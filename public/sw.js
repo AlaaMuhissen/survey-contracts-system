@@ -1,5 +1,5 @@
 // public/sw.js
-const VERSION = "v2026-01-25-01";
+const VERSION = "v2026-01-25-02";// bumped so the fix actually replaces the poisoned cache
 const APP_CACHE = `app-shell-${VERSION}`;
 const ASSET_CACHE = `assets-${VERSION}`;
 
@@ -17,7 +17,21 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     (async () => {
       const appCache = await caches.open(APP_CACHE);
-      await appCache.addAll(APP_SHELL);
+
+      // Cache app shell resiliently, one file at a time — cache.addAll()
+      // is all-or-nothing, so a single failed resource (transient network
+      // blip, a bad status code) used to fail the ENTIRE install, which
+      // then keeps retrying and can trigger repeated-crash behavior.
+      await Promise.all(
+        APP_SHELL.map(async (url) => {
+          try {
+            const res = await fetch(url, { cache: "no-store" });
+            if (res.ok) await appCache.put(url, res.clone());
+          } catch {
+            // offline during install/update -> ignore
+          }
+        })
+      );
 
       // fonts cache: try, but don't break install if fetch fails
       const assetCache = await caches.open(ASSET_CACHE);
@@ -86,8 +100,16 @@ self.addEventListener("fetch", (event) => {
       (async () => {
         try {
           const res = await fetch(req);
-          const cache = await caches.open(APP_CACHE);
-          cache.put("/index.html", res.clone());
+          // Only cache a GOOD response as the app shell. This was the
+          // actual bug: fetch() only throws on a true network failure, not
+          // on a 404/500/etc — those still "succeed" here and used to get
+          // cached as index.html, poisoning the offline fallback with a
+          // broken shell that then crashes on every load (even after
+          // refreshing) until the cache was manually cleared.
+          if (res && res.ok) {
+            const cache = await caches.open(APP_CACHE);
+            cache.put("/index.html", res.clone());
+          }
           return res;
         } catch {
           const cached = await caches.match("/index.html");

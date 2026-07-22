@@ -1,6 +1,6 @@
-import  { useState } from "react";
+import { useState } from "react";
 import { Company, Project } from "../types";
-import AsyncButton from "./AsyncButton";
+import Modal from "./Modal";
 
 type EditableProjectFields = {
   name: string;
@@ -11,230 +11,185 @@ type EditableProjectFields = {
 export default function ProjectManager({
   companies,
   projects,
-  projectCompany,
-  setProjectCompany,
-  newProject,
-  setNewProject,
-  newCost,
-  setNewCost,
-  newAddress,
-  setNewAddress,
-  onAddProject,
   onDeleteProject,
-
-  onUpdateProject, 
+  onUpdateProject,
 }: {
   companies: Company[];
   projects: Project[];
-  projectCompany: string;
-  setProjectCompany: (v: string) => void;
-
-  newProject: string;
-  setNewProject: (v: string) => void;
-
-  newCost: number;
-  setNewCost: (v: number) => void;
-
-  newAddress: string;
-  setNewAddress: (v: string) => void;
-
-  onAddProject: () => void;
   onDeleteProject: (id: string) => void;
-
-  onUpdateProject: (id: string, patch: Partial<EditableProjectFields>) => Promise<void> | void; // ✅ NEW
+  onUpdateProject: (id: string, patch: Partial<EditableProjectFields>) => Promise<void> | void;
 }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const [filterCompanyId, setFilterCompanyId] = useState("");
+  const [editing, setEditing] = useState<Project | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [edit, setEdit] = useState<EditableProjectFields>({ name: "", cost: 0, address: "" });
 
-  // local form state for editing
-  const [edit, setEdit] = useState<EditableProjectFields>({
-    name: "",
-    cost: 1,
-    address: "",
-  });
-
-
-  const visibleCompanies = projectCompany
-    ? companies.filter((co) => co.id === projectCompany)
-    : companies;
+  const companyName = (id: string) => companies.find((c) => c.id === id)?.name || "—";
+  const visible = filterCompanyId ? projects.filter((p) => p.companyId === filterCompanyId) : projects;
 
   const startEdit = (p: Project) => {
-    setEditingId(p.id);
+    setEditing(p);
     setEdit({
       name: p.name ?? "",
-      cost: (p as any).cost ?? 1,
+      cost: (p as any).cost ?? 0,
       address: (p as any).address ?? "",
     });
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEdit({ name: "", cost: 1, address: "" });
+  const closeEdit = () => {
+    setEditing(null);
+    setSaving(false);
   };
 
-  const saveEdit = async () => {
-    if (!editingId) return;
-    await onUpdateProject(editingId, {
-      name: edit.name.trim(),
-      cost: Number(edit.cost) || 0,
-      address: edit.address.trim(),
-    });
-    setEditingId(null);
+  const save = async () => {
+    if (!editing) return;
+    setSaving(true);
+    try {
+      await onUpdateProject(editing.id, {
+        name: edit.name.trim(),
+        cost: Number(edit.cost) || 0,
+        address: edit.address.trim(),
+      });
+      closeEdit();
+    } catch (e) {
+      console.error(e);
+      alert("שגיאה בשמירה");
+      setSaving(false);
+    }
   };
-  
+
+  const fieldCls = "w-full min-w-0 border rounded-xl px-3 py-2.5 text-base focus:outline-none focus:ring-2 focus:ring-indigo-300/60";
+
   return (
-     
-    <div className="rounded-2xl border bg-white/80 backdrop-blur p-4 shadow-sm background-gradient-to-b from-indigo-50 to-white">
-
-      <div className="space-y-4">
-        {visibleCompanies.map((co) => {
-          const list = projects.filter((p) => p.companyId === co.id);
-
-          return (
-            <div
-              key={co.id}
-              className="rounded-xl border bg-white/70 p-3 background-gradient-to-b from-indigo-50 to-white"
-            >
-              <div className="flex items-center justify-between mb-2 bg-black/80 h-12 px-3 rounded-lg py-8">
-                            {/* ✅ Add project row */}
-                <div className="grid grid-cols-1 sm:grid-cols-6 gap-2">
-                  <select
-                    className="border rounded-lg px-3 py-2"
-                    value={projectCompany}
-                    onChange={(e) => setProjectCompany(e.target.value)}
-                  >
-                    <option value="">בחר חברה</option>
-                    {companies.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
-
-                  <input
-                    className="border rounded-lg px-3 py-2"
-                    placeholder="שם פרויקט"
-                    value={newProject}
-                    onChange={(e) => setNewProject(e.target.value)}
-                  />
-
-                 <input
-                      type="number"
-                      className="border rounded-lg px-3 py-2"
-                      placeholder="עלות (₪)"
-                      value={newCost ?? 0}              // ✅ important
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        console.log("Setting new cost:", v);
-                        setNewCost(Number(e.target.value || 0));
-
-                      }}
-/>
-
-                  <input
-                    className="border rounded-lg px-3 py-2"
-                    placeholder="כתובת"
-                    value={newAddress}
-                    onChange={(e) => setNewAddress(e.target.value)}
-                  />
-                  <AsyncButton
-                    onClick={ () => {
-                      console.log("Adding project:", { newProject, newCost, newAddress, projectCompany });
-                      onAddProject();
-                    }}
-                    // disabled={!canAdd}}
-                  >
-                    הוסף
-                  </AsyncButton>
-                </div>
-           
-                <div className="text-xs text-neutral-200">{list.length} פרויקטים</div>
-              </div>
-
-              {list.length === 0 ? (
-                <div className="text-sm text-neutral-500">אין פרויקטים לחברה זו</div>
-              ) : (
-                <ul className="divide-y max-h-60 overflow-y-auto">
-                  {list.map((p) => {
-                    const isEditing = editingId === p.id;
-
-                    return (
-                      <li
-                        key={p.id}
-                        className={`py-2 px-2 rounded-lg transition-colors ${
-                          isEditing ? "bg-indigo-50" : "hover:bg-neutral-100 cursor-pointer"
-                        }`}
-                        onClick={() => {
-                          if (!isEditing) startEdit(p);
-                        }}
-                      >
-                        {!isEditing ? (
-                          <div className="flex items-center justify-between">
-                            <div className="min-w-0">
-                              <div className="truncate text-black/80">{p.name}</div>
-                              <div className="text-xs text-neutral-500 truncate">
-                                {"cost" in p && (p as any).cost != null ? `₪${(p as any).cost}` : ""}
-                                {"address" in p && (p as any).address ? ` • ${(p as any).address}` : ""}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                              <button
-                                className="inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs
-                                           hover:bg-red-50 hover:border-red-200 text-red-600"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (window.confirm("למחוק את הפרויקט?")) onDeleteProject(p.id);
-                                }}
-                              >
-                                מחק
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-              
-                          <div
-                            className="grid grid-cols-1 sm:grid-cols-6 gap-2 items-center"
-                            onClick={(e) => e.stopPropagation()} 
-                          >
-                            <input
-                              className="border rounded-lg px-3 py-2 sm:col-span-2"
-                              value={edit.name}
-                              onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))}
-                              placeholder="שם פרויקט"
-                              autoFocus
-                            />
-                            <input
-                              className="border rounded-lg px-3 py-2"
-                              value={edit.cost}
-                              onChange={(e) => setEdit((s) => ({ ...s, cost: Number(e.target.value) }))}
-                              placeholder="עלות (₪)"
-                              type="number"
-                            />
-                            <input
-                              className="border rounded-lg px-3 py-2 sm:col-span-2"
-                              value={edit.address}
-                              onChange={(e) => setEdit((s) => ({ ...s, address: e.target.value }))}
-                              placeholder="כתובת"
-                            />
-
-                            <div className="flex gap-2 justify-end sm:col-span-1">
-                              <AsyncButton onClick={saveEdit}>שמור</AsyncButton>
-                              <button
-                                className="border rounded-lg px-3 py-2 text-sm hover:bg-neutral-50"
-                                onClick={cancelEdit}
-                              >
-                                ביטול
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </div>
-          );
-        })}
+    <div dir="rtl">
+      <div className="mb-3">
+        <label className="block text-xs text-neutral-600 mb-1">סינון לפי חברה</label>
+        <select
+          className="border rounded-xl px-3 py-2.5 text-base w-full sm:w-64 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300/60"
+          value={filterCompanyId}
+          onChange={(e) => setFilterCompanyId(e.target.value)}
+        >
+          <option value="">כל החברות</option>
+          {companies.map((c) => (
+            <option key={c.id} value={c.id}>{c.name}</option>
+          ))}
+        </select>
       </div>
+
+      {visible.length === 0 ? (
+        <div className="rounded-xl border border-dashed bg-white/60 py-12 text-center text-sm text-neutral-500">
+          אין פרויקטים להצגה
+        </div>
+      ) : (
+        <>
+          {/* Mobile: cards */}
+          <div className="grid grid-cols-1 gap-2 sm:hidden">
+            {visible.map((p) => (
+              <div key={p.id} className="rounded-xl border bg-white p-3 active:bg-neutral-50" onClick={() => startEdit(p)}>
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-black/80 truncate">{p.name}</div>
+                    <div className="text-xs text-neutral-500 mt-0.5 truncate">{companyName(p.companyId)}</div>
+                    <div className="text-xs text-neutral-400 mt-0.5 truncate">
+                      {(p as any).cost != null ? `₪${(p as any).cost}` : ""}
+                      {(p as any).address ? ` · ${(p as any).address}` : ""}
+                    </div>
+                  </div>
+                  <button
+                    className="shrink-0 inline-flex items-center rounded-full border px-2 py-1 text-xs text-red-600 hover:bg-red-50"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (window.confirm("למחוק את הפרויקט?")) onDeleteProject(p.id);
+                    }}
+                  >
+                    מחק
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: table */}
+          <div className="hidden sm:block border rounded-xl">
+            <table className="min-w-full text-sm">
+              <thead className="text-right bg-black/80">
+                <tr>
+                  <th className="p-2.5 font-medium text-white first:rounded-tr-xl">פרויקט</th>
+                  <th className="p-2.5 font-medium text-white">חברה</th>
+                  <th className="p-2.5 font-medium text-white">עלות</th>
+                  <th className="p-2.5 font-medium text-white">כתובת</th>
+                  <th className="p-2.5 w-32 font-medium text-white last:rounded-tl-xl">פעולות</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {visible.map((p) => (
+                  <tr key={p.id} className="border-t hover:bg-neutral-50 transition-colors cursor-pointer" onClick={() => startEdit(p)}>
+                    <td className="p-2.5 text-black/80 max-w-[220px] truncate">{p.name}</td>
+                    <td className="p-2.5 text-black/80">{companyName(p.companyId)}</td>
+                    <td className="p-2.5 text-black/80">{(p as any).cost != null ? `₪${(p as any).cost}` : "—"}</td>
+                    <td className="p-2.5 text-black/80 max-w-[200px] truncate">{(p as any).address || "—"}</td>
+                    <td className="p-2.5">
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="inline-flex items-center rounded-full border px-2 py-1 text-xs hover:bg-neutral-50"
+                          onClick={(e) => { e.stopPropagation(); startEdit(p); }}
+                        >
+                          ערוך
+                        </button>
+                        <button
+                          className="inline-flex items-center rounded-full border px-2 py-1 text-xs hover:bg-red-50 hover:border-red-200 text-red-600"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm("למחוק את הפרויקט?")) onDeleteProject(p.id);
+                          }}
+                        >
+                          מחק
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      <Modal
+        open={!!editing}
+        onClose={closeEdit}
+        title="עריכת פרויקט"
+        maxWidthClass="max-w-lg"
+        footer={
+          <>
+            <button className="text-sm underline text-neutral-600 py-2 sm:py-0" onClick={closeEdit} disabled={saving}>
+              ביטול
+            </button>
+            <button
+              className="w-full sm:w-auto rounded-xl px-4 py-2.5 text-base sm:text-sm bg-black text-white hover:bg-black/85 disabled:opacity-50"
+              onClick={save}
+              disabled={saving || !edit.name.trim()}
+            >
+              {saving ? "שומר..." : "שמור"}
+            </button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="sm:col-span-2">
+            <label className="block text-xs text-neutral-600 mb-1">שם פרויקט</label>
+            <input className={fieldCls} value={edit.name} onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))} />
+          </div>
+          <div>
+            <label className="block text-xs text-neutral-600 mb-1">עלות (₪)</label>
+            <input className={fieldCls} type="number" value={edit.cost} onChange={(e) => setEdit((s) => ({ ...s, cost: Number(e.target.value) }))} />
+          </div>
+          <div>
+            <label className="block text-xs text-neutral-600 mb-1">כתובת</label>
+            <input className={fieldCls} value={edit.address} onChange={(e) => setEdit((s) => ({ ...s, address: e.target.value }))} />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

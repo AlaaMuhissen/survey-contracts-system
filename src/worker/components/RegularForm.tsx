@@ -25,6 +25,13 @@ export default function RegularForm({
   projFromCache,
   refreshProjects,
   onChooseCompany,
+  privateClients,
+  pcLoading,
+  pcOffline,
+  pcFromCache,
+  refreshPrivateClients,
+  onChoosePrivateClient,
+  onToggleMode,
   workDescription,
   selectedWorkDescription,
   setSelectedWorkDescription,
@@ -51,6 +58,13 @@ export default function RegularForm({
   refreshProjects: () => void;
   
   onChooseCompany: (companyId: string) => void;
+  privateClients: { id: string; name: string }[];
+  pcLoading: boolean;
+  pcOffline: boolean;
+  pcFromCache: boolean;
+  refreshPrivateClients: () => void;
+  onChoosePrivateClient: (privateClientId: string) => void;
+  onToggleMode: (nextIsPrivate: boolean) => void;
   workDescription: { id: string; name: string }[];
   selectedWorkDescription: string[];
   setSelectedWorkDescription: React.Dispatch<React.SetStateAction<string[]>>;
@@ -103,10 +117,80 @@ export default function RegularForm({
         </div>
       </section>
 
-      {/* Company */}
+      {/* Company / Private service */}
       <section className="rounded-2xl border bg-white p-4 shadow-sm">
-        <div className="text-base font-semibold mb-2 text-right">פרטי החברה</div>
+        <div className="text-base font-semibold mb-2 text-right">
+          {form.isPrivate ? "שירות פרטי" : "פרטי החברה"}
+        </div>
+
+        {/* Mode toggle */}
+        <div className="flex gap-2 justify-center mb-4">
+          <button
+            type="button"
+            onClick={() => onToggleMode(false)}
+            className={
+              "rounded-xl border px-6 py-2 " +
+              (!form.isPrivate ? "bg-black/80 text-white" : "hover:bg-neutral-50")
+            }
+          >
+            חברה / פרויקט
+          </button>
+          <button
+            type="button"
+            onClick={() => onToggleMode(true)}
+            className={
+              "rounded-xl border px-6 py-2 " +
+              (form.isPrivate ? "bg-black/80 text-white" : "hover:bg-neutral-50")
+            }
+          >
+            שירות פרטי
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 gap-4">
+{form.isPrivate ? (
+  /* Private client */
+  <div>
+    <div className={labelCls + " flex items-center justify-between"}>
+      <span>שם לקוח</span>
+      {errors.privateClientName && <div className="text-xs text-red-600 mt-1">{errors.privateClientName}</div>}
+      <span className="text-xs text-neutral-500">
+        {pcLoading ? "טוען..." : pcOffline ? "אופליין" : pcFromCache ? "מהזיכרון" : "מעודכן"}
+      </span>
+    </div>
+
+    <select
+      className={inputCls + (errors.privateClientName ? " border-red-600" : "")}
+      value={form.privateClientId || ""}
+      onChange={(e) => onChoosePrivateClient(e.target.value)}
+    >
+      <option value="">בחר לקוח קיים... (או הקלד/י שם חדש למטה)</option>
+      {privateClients.map((c) => (
+        <option key={c.id} value={c.id}>{c.name}</option>
+      ))}
+    </select>
+
+    {!pcOffline && (
+      <button type="button" className="mt-2 text-xs underline" onClick={refreshPrivateClients}>
+        רענן לקוחות
+      </button>
+    )}
+
+    <div className="mt-3">
+      <div className={labelCls}>שם לקוח חדש</div>
+      <input
+        className={inputCls + (errors.privateClientName ? " border-red-600" : "")}
+        value={form.privateClientName || ""}
+        onChange={(e) => {
+          setField("privateClientId")("");
+          setField("privateClientName")(e.target.value);
+        }}
+        placeholder="הקלד/י שם לקוח"
+      />
+    </div>
+  </div>
+) : (
+  <>
 {/* Company */}
 <div>
   <div className={labelCls + " flex items-center justify-between"}>
@@ -183,6 +267,8 @@ export default function RegularForm({
     />
   </div>
 </div>
+  </>
+)}
 
           <div>
             <div className={labelCls}>מנהל עבודה

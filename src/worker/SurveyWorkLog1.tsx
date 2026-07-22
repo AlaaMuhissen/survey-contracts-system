@@ -6,6 +6,7 @@ import {WorkLogForm } from "./utils/pdf/WorkLogPDF";
 import { useIsDesktop } from "./hooks/useIsDesktop";
 import { useCompanies } from "../data/useCompanies";
 import { useProjects } from "../data/useProjects";
+import { usePrivateClients } from "../data/usePrivateClients";
 import AsyncButton from "../admin/components/AsyncButton";
 import { useNavigate, useParams } from "react-router-dom";
 import RegularForm from "./components/RegularForm";
@@ -14,9 +15,7 @@ import saveToFirebase from "./workLog/saveToFirebase";
 import downloadVectorPDF from "./workLog/downloadVectorPDF";
 import sendWhatsApp from "./workLog/sendWhatsApp";
 import sendEmail from "./workLog/sendEmail";
-import PrintCSS from "./utils/pdf/PrintCSS";
 import WorkerProfileModal from "./workLog/WorkerProfileModal";
-import FieloStartLoginPage from "../FieloStartLoginPage";
 import { loadWorkerFromCache, saveWorkerToCache } from "../data/WorkerStore";
 
 const API_BASE = process.env.BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
@@ -29,11 +28,11 @@ export default function SurveyWorkLog1() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { surveyId: surveyIdParam = "" } = useParams<{ surveyId: string }>();
   const [surveyId, setSurveyId] = useState<string>(surveyIdParam || localStorage.getItem("surveyId") || "");
-  const [workerId, setWorkerId] = useState<string>(localStorage.getItem("workerId") || "");
+  const [workerId, ] = useState<string>(localStorage.getItem("workerId") || "");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const nav = useNavigate();
-  const [synced, setSynced] = useState<any[]>([]);
+  const [, setSynced] = useState<any[]>([]);
   const workerName = localStorage.getItem("workerName") || "";
   //const workDescription =  [ "אזמיד" ,"סימון גובה" , "סימון גדר", "סימון אש", "סימון קומה"] 
   const workDescription = [
@@ -63,6 +62,9 @@ export default function SurveyWorkLog1() {
     companyId: "",
     projectId: "",
     project: "",
+    isPrivate: false,
+    privateClientId: "",
+    privateClientName: "",
     manager: "",
     teamLead: "",
     helper1: "",
@@ -80,6 +82,9 @@ export default function SurveyWorkLog1() {
     companyId: "",
     projectId: "",
     project: "",
+    isPrivate: false,
+    privateClientId: "",
+    privateClientName: "",
     manager: "",
     teamLead: workerName || "",
     helper1: "",
@@ -131,6 +136,28 @@ export default function SurveyWorkLog1() {
     setField("project")("");
   };
 
+  // switch between "company/project" mode and "private service" mode —
+  // clears out whichever side isn't in use so a stale value can't sneak
+  // into validation or the saved record
+  const onToggleMode = (nextIsPrivate: boolean) => {
+    setForm((s) => ({
+      ...s,
+      isPrivate: nextIsPrivate,
+      ...(nextIsPrivate
+        ? { companyId: "", company: "", projectId: "", project: "" }
+        : { privateClientId: "", privateClientName: "" }),
+    }));
+  };
+
+  // picking an existing private client from the dropdown; typing a new name
+  // instead goes straight through setField("privateClientName") and clears
+  // privateClientId (see RegularForm/DesktopForm)
+  const onChoosePrivateClient = (privateClientId: string) => {
+    const c = privateClients.find((x) => x.id === privateClientId);
+    setField("privateClientId")(privateClientId);
+    setField("privateClientName")(c?.name || "");
+  };
+
   const authHeaders: HeadersInit | undefined = workerToken
     ? { 
       "Content-Type": "application/json",
@@ -146,6 +173,10 @@ export default function SurveyWorkLog1() {
   const {
     projects, loading: projLoading, offline: projOffline, fromCache: projFromCache, refresh: refreshProjects
   } = useProjects(API_BASE, form.companyId, authHeaders);
+
+  const {
+    privateClients, loading: pcLoading, offline: pcOffline, fromCache: pcFromCache, refresh: refreshPrivateClients
+  } = usePrivateClients(API_BASE, authHeaders);
 
   async function fetchWorker(surveyId: string) {
     // OFFLINE FAST PATH
@@ -384,6 +415,13 @@ export default function SurveyWorkLog1() {
               projFromCache={projFromCache}
               refreshProjects={refreshProjects}
               onChooseCompany={onChooseCompany}
+              privateClients={privateClients}
+              pcLoading={pcLoading}
+              pcOffline={pcOffline}
+              pcFromCache={pcFromCache}
+              refreshPrivateClients={refreshPrivateClients}
+              onChoosePrivateClient={onChoosePrivateClient}
+              onToggleMode={onToggleMode}
               workDescription={workDescription}
               selectedWorkDescription={selectedWorkDescription}
               setSelectedWorkDescription={setSelectedWorkDescription}
@@ -410,6 +448,13 @@ export default function SurveyWorkLog1() {
               projFromCache={projFromCache}
               refreshProjects={refreshProjects}
               onChooseCompany={onChooseCompany}
+              privateClients={privateClients}
+              pcLoading={pcLoading}
+              pcOffline={pcOffline}
+              pcFromCache={pcFromCache}
+              refreshPrivateClients={refreshPrivateClients}
+              onChoosePrivateClient={onChoosePrivateClient}
+              onToggleMode={onToggleMode}
               workDescription={workDescription}
               selectedWorkDescription={selectedWorkDescription}
               setSelectedWorkDescription={setSelectedWorkDescription}

@@ -9,6 +9,9 @@ export type WorkLog = {
   companyId?: string;
   project?: string;
   projectId?: string;
+  isPrivate?: boolean;
+  privateClientId?: string;
+  privateClientName?: string;
   manager?: string;
   teamLead?: string;
   dayType?: DayType;
@@ -70,6 +73,17 @@ export type Project = {
   isActive?: boolean;
   cost: number,
   address: string,
+};
+
+export type PrivateClient = {
+  id: string;
+  name: string;
+  surveyId?: string;
+  price?: number;
+  address?: string;
+  phone?: string;
+  email?: string;
+  active?: boolean;
 };
 
 export type Worker = {

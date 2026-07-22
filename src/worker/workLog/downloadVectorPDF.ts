@@ -2,6 +2,16 @@ import { useNavigate } from "react-router-dom";
 import { generateWorkLogPdfBlob } from "../utils/pdf/WorkLogPDF";
 import { sendOrQueue } from "../utils/queue/sendOrQueue";
 import { validateWorklog } from "../utils/validation/validateWorklog";
+import { slugify } from "../utils/slugify";
+
+// PLACEHOLDER — see saveToFirebase.ts for the full explanation. Swap out
+// once the backend has a dedicated private-clients route.
+const apiIdsFor = (form: any) => ({
+  companyId: form.isPrivate ? "private" : form.companyId,
+  projectId: form.isPrivate
+    ? form.privateClientId || slugify(form.privateClientName)
+    : form.projectId,
+});
 
 const toISO = (d: Date | undefined | null) =>
   (d ?? new Date()).toISOString().slice(0, 10);
@@ -72,12 +82,13 @@ const downloadVectorPDF = async (
     );
     triggerBrowserDownload(offlineBlob, filename("00000-offline"));
 
+    const { companyId, projectId } = apiIdsFor(form);
     const { queued } = await sendOrQueue(
       { ...form, number: "00000" },
       null,
       surveyId,
-      form.companyId,
-      form.projectId,
+      companyId,
+      projectId,
       { sigManager, sigLead, sigMeta }
     );
 
@@ -130,12 +141,13 @@ const downloadVectorPDF = async (
 
   // 8) Upload (or queue) — same as Save
   const sigPack = { sigManager, sigLead, sigMeta };
+  const { companyId, projectId } = apiIdsFor(form);
   const { queued } = await sendOrQueue(
     { ...form, number, seq },
     pdfBlob,
     surveyId,
-    form.companyId,
-    form.projectId,
+    companyId,
+    projectId,
     sigPack
   );
 

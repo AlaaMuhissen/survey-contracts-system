@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 
@@ -10,6 +10,35 @@ const API = "https://survey-contracts-system-backend.onrender.com";
 export default function FieloStartLoginPage() {
   const nav = useNavigate();
   const [role, setRole] = useState<Role>("worker");
+  const [checkedSession, setCheckedSession] = useState(false);
+
+  // Fix: on mount, check localStorage (no network call — works offline)
+  // for an already-logged-in worker or admin. Tokens persist across a full
+  // app close/reopen, but nothing was ever reading them here before
+  // redirecting — so reopening the PWA after it was fully closed
+  // ("dropped") always landed on this login screen, even for someone
+  // already logged in, even while offline where the login form can't
+  // possibly work (it needs a network call to authenticate).
+  useEffect(() => {
+    const surveyId = localStorage.getItem("surveyId");
+
+    const workerToken = localStorage.getItem("workerToken");
+    if (workerToken && surveyId) {
+      nav(`/${encodeURIComponent(surveyId)}`, { replace: true });
+      return;
+    }
+
+    const adminToken = localStorage.getItem("adminToken");
+    if (adminToken && surveyId) {
+      nav(`/admin/${encodeURIComponent(surveyId)}`, { replace: true });
+      return;
+    }
+
+    setCheckedSession(true);
+  }, [nav]);
+
+  // Avoid flashing the login screen for a moment while the check above runs.
+  if (!checkedSession) return null;
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-neutral-50 text-neutral-900" dir="rtl">
@@ -506,35 +535,21 @@ function MiniStepLight({ idx, text }: { idx: string; text: string }) {
 function LightPremiumBg() {
   return (
     <div className="pointer-events-none absolute inset-0">
-      {/* Animated blobs (Light) */}
-      <motion.div
-        className="absolute -top-48 -left-48 h-[560px] w-[560px] rounded-full blur-3xl opacity-60"
+      {/* Static soft glow — no animation, no blur-3xl */}
+      <div
+        className="absolute -top-32 -left-32 h-[420px] w-[420px] rounded-full blur-2xl opacity-40"
         style={{
           background:
-            "radial-gradient(circle at 30% 30%, rgba(59,130,246,0.45), rgba(59,130,246,0.0) 60%)",
+            "radial-gradient(circle at 30% 30%, rgba(59,130,246,0.35), rgba(59,130,246,0.0) 60%)",
         }}
-        animate={{ x: [0, 40, -20, 0], y: [0, 25, 55, 0] }}
-        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      <motion.div
-        className="absolute -bottom-64 -right-64 h-[680px] w-[680px] rounded-full blur-3xl opacity-60"
+      <div
+        className="absolute -bottom-40 -right-40 h-[480px] w-[480px] rounded-full blur-2xl opacity-40"
         style={{
           background:
-            "radial-gradient(circle at 30% 30%, rgba(168,85,247,0.42), rgba(168,85,247,0.0) 60%)",
+            "radial-gradient(circle at 30% 30%, rgba(168,85,247,0.32), rgba(168,85,247,0.0) 60%)",
         }}
-        animate={{ x: [0, -55, 15, 0], y: [0, -20, -70, 0] }}
-        transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
-      />
-
-      <motion.div
-        className="absolute left-1/2 top-1/2 h-[720px] w-[720px] -translate-x-1/2 -translate-y-1/2 rounded-full blur-3xl opacity-40"
-        style={{
-          background:
-            "radial-gradient(circle at 30% 30%, rgba(34,197,94,0.28), rgba(34,197,94,0.0) 62%)",
-        }}
-        animate={{ scale: [1, 1.07, 0.98, 1] }}
-        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
       />
 
       {/* Soft gradient overlay */}
@@ -558,3 +573,5 @@ function GridLinesLight() {
     />
   );
 }
+
+

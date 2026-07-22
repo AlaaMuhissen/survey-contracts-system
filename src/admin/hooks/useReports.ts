@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { Company, Project, ReportResponse } from "../types";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
+import { Company, Project, PrivateClient, ReportResponse } from "../types";
 import {
   fetchCompanies, fetchProjects,
-  fetchReportCompanyProjectDays, fetchReportBlob
+  fetchReportCompanyProjectDays, fetchReportBlob,
+  getPrivateClients,
 } from "../api/adminApi";
 import { API } from "../constants";
 
 import * as XLSX from "xlsx";
 import ExcelJS from "exceljs";
+
+const PRIVATE_LABEL = "שירות פרטי";
 
 // Local-date formatting (avoid toISOString() here — it converts to UTC
 // first, which can shift the date by one day depending on timezone/time
@@ -33,14 +36,21 @@ export function useReports(headers: Record<string,string> ,surveyId: string) {
  const [from, setFrom] = useState(() => firstOfThisMonth());
 const [to, setTo] = useState(() => today());
 
-  // selects (IDs)
-  const [companyId, setCompanyId] = useState("");
-  const [projectId, setProjectId] = useState("");
+  // Tree/checklist selections. Empty means "no filter" — the report shows
+  // everything, matching the standard convention (nothing checked = all).
+  // checkedCompanyIds holds companies whose master checkbox is fully
+  // checked — sent as an independent OR'd filter so a company match always
+  // includes projects added later, not just whatever existed at selection
+  // time. checkedProjectIds holds every individually-checked project,
+  // whether picked one at a time or via a company's cascade.
+  const [checkedCompanyIds, setCheckedCompanyIds] = useState<string[]>([]);
+  const [checkedProjectIds, setCheckedProjectIds] = useState<string[]>([]);
+  const [checkedPrivateClientIds, setCheckedPrivateClientIds] = useState<string[]>([]);
 
   // options
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
+  const [privateClients, setPrivateClients] = useState<PrivateClient[]>([]);
 
   // report
   const [report, setReport] = useState<ReportResponse | null>(null);
@@ -48,49 +58,142 @@ const [to, setTo] = useState(() => today());
   const [err, setErr] = useState("");
   const adminKey = localStorage.getItem("adminToken") || "";
   const hasKey = Boolean(adminKey.trim());
-  console.log("hasKey:", hasKey);
-  
 
-  // load companies once
+  // load companies once, default to all-selected — admin unchecks what
+  // they don't want, rather than starting from nothing
+  const companiesInitRef = useRef(false);
+  const [companiesLoaded, setCompaniesLoaded] = useState(false);
   useEffect(() => {
     if(!hasKey) return;
     fetchCompanies(headers , surveyId)
-      .then(setCompanies)
-      .catch(() => {});
+      .then((items) => {
+        setCompanies(items);
+        if (!companiesInitRef.current && items.length) {
+          companiesInitRef.current = true;
+          setCheckedCompanyIds(items.map((c) => c.id));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setCompaniesLoaded(true));
   }, [headers , surveyId]);
 
-  // load projects when company changes (and also keep an allProjects cache)
+  // load ALL projects once (survey-wide), default to all-selected
+  const projectsInitRef = useRef(false);
+  const [projectsLoaded, setProjectsLoaded] = useState(false);
   useEffect(() => {
-    fetchProjects(headers, companyId , surveyId)
+    if (!hasKey) return;
+    fetchProjects(headers, undefined, surveyId)
       .then((items) => {
-        console.log(`items ${items}`)
-        console.log(`items company ID ${companyId}`)
-        setProjects(items);
-        if (!companyId) setAllProjects(items);
+        setAllProjects(items);
+        if (!projectsInitRef.current && items.length) {
+          projectsInitRef.current = true;
+          setCheckedProjectIds(items.map((p) => p.id));
+        }
       })
-      .catch((e: any) => {
-        console.error(e)
+      .catch(() => {})
+      .finally(() => setProjectsLoaded(true));
+  }, [headers, surveyId]);
+
+  // load private clients once, default to all-selected
+  const privateClientsInitRef = useRef(false);
+  const [privateClientsLoaded, setPrivateClientsLoaded] = useState(false);
+  useEffect(() => {
+    if (!hasKey) return;
+    getPrivateClients(surveyId, headers)
+      .then((items) => {
+        setPrivateClients(items);
+        if (!privateClientsInitRef.current && items.length) {
+          privateClientsInitRef.current = true;
+          setCheckedPrivateClientIds(items.map((c) => c.id));
+        }
+      })
+      .catch(() => {})
+      .finally(() => setPrivateClientsLoaded(true));
+  }, [headers, surveyId]);
+
+  // gates the auto-refresh below — prevents a section that hasn't finished
+  // loading yet from briefly acting like "explicitly selected nothing" and
+  // hiding real rows for a moment
+  const optionsReady = companiesLoaded && projectsLoaded && privateClientsLoaded;
+
+  const projectsByCompany = useMemo(() => {
+    const map = new Map<string, Project[]>();
+    for (const p of allProjects) {
+      const list = map.get(p.companyId) || [];
+      list.push(p);
+      map.set(p.companyId, list);
+    }
+    return map;
+  }, [allProjects]);
+
+  const companyState = useCallback((companyId: string): "all" | "some" | "none" => {
+    const projectIds = (projectsByCompany.get(companyId) || []).map((p) => p.id);
+    if (projectIds.length === 0) return checkedCompanyIds.includes(companyId) ? "all" : "none";
+    const checkedCount = projectIds.filter((id) => checkedProjectIds.includes(id)).length;
+    if (checkedCount === 0) return "none";
+    if (checkedCount === projectIds.length) return "all";
+    return "some";
+  }, [projectsByCompany, checkedProjectIds, checkedCompanyIds]);
+
+  const toggleCompany = useCallback((companyId: string) => {
+    const projectIds = (projectsByCompany.get(companyId) || []).map((p) => p.id);
+    const state = companyState(companyId);
+    if (state === "all") {
+      setCheckedCompanyIds((s) => s.filter((id) => id !== companyId));
+      setCheckedProjectIds((s) => s.filter((id) => !projectIds.includes(id)));
+    } else {
+      setCheckedCompanyIds((s) => (s.includes(companyId) ? s : [...s, companyId]));
+      setCheckedProjectIds((s) => Array.from(new Set([...s, ...projectIds])));
+    }
+  }, [projectsByCompany, companyState]);
+
+  const toggleProject = useCallback((companyId: string, projectId: string) => {
+    setCheckedProjectIds((s) => {
+      const next = s.includes(projectId) ? s.filter((id) => id !== projectId) : [...s, projectId];
+      const projectIds = (projectsByCompany.get(companyId) || []).map((p) => p.id);
+      const allChecked = projectIds.length > 0 && projectIds.every((id) => next.includes(id));
+      setCheckedCompanyIds((cs) => {
+        if (allChecked) return cs.includes(companyId) ? cs : [...cs, companyId];
+        return cs.filter((id) => id !== companyId);
       });
-  }, [headers, companyId , surveyId]);
+      return next;
+    });
+  }, [projectsByCompany]);
 
-  // reset project when company changes
-  useEffect(() => setProjectId(""), [companyId]);
+  // master toggle: if literally everything is checked, clear it all;
+  // otherwise check every company and every project
+  const masterCompanyState = useMemo<"all" | "some" | "none">(() => {
+    if (allProjects.length === 0) return "none";
+    if (checkedProjectIds.length === 0) return "none";
+    if (checkedProjectIds.length === allProjects.length) return "all";
+    return "some";
+  }, [allProjects, checkedProjectIds]);
 
-  // resolve selected names for server (backend filters by NAME)
-  const selectedCompanyName = useMemo(
-    () => companies.find((c) => c.id === companyId)?.name || "",
-    [companies, companyId]
-  );
+  const toggleAllCompanies = useCallback(() => {
+    if (masterCompanyState === "all") {
+      setCheckedCompanyIds([]);
+      setCheckedProjectIds([]);
+    } else {
+      setCheckedCompanyIds(companies.map((c) => c.id));
+      setCheckedProjectIds(allProjects.map((p) => p.id));
+    }
+  }, [masterCompanyState, companies, allProjects]);
 
-  const selectedProjectList = useMemo(
-    () => (companyId ? projects : (allProjects.length ? allProjects : projects)),
-    [companyId, projects, allProjects]
-  );
+  const togglePrivateClient = useCallback((id: string) => {
+    setCheckedPrivateClientIds((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+  }, []);
 
-  const selectedProjectName = useMemo(
-    () => selectedProjectList.find((p) => p.id === projectId)?.name || "",
-    [selectedProjectList, projectId]
-  );
+  const masterPrivateState = useMemo<"all" | "some" | "none">(() => {
+    if (privateClients.length === 0) return "none";
+    if (checkedPrivateClientIds.length === 0) return "none";
+    if (checkedPrivateClientIds.length === privateClients.length) return "all";
+    return "some";
+  }, [privateClients, checkedPrivateClientIds]);
+
+  const toggleAllPrivateClients = useCallback(() => {
+    if (masterPrivateState === "all") setCheckedPrivateClientIds([]);
+    else setCheckedPrivateClientIds(privateClients.map((c) => c.id));
+  }, [masterPrivateState, privateClients]);
 
   const baseReportUrl = `${API}/surveys/${surveyId}/reports/company-project-days`;
 
@@ -98,16 +201,12 @@ const [to, setTo] = useState(() => today());
     setLoading(true);
     setErr("");
     try {
-      console.log("Loading report with params:", {
-        from, to, selectedCompanyName, selectedProjectName , companyId, projectId
-      });
       const json = await fetchReportCompanyProjectDays(headers, baseReportUrl, {
         from: from || undefined,
         to: to || undefined,
-        companyName: selectedCompanyName || undefined,
-        projectName: selectedProjectName || undefined,
-        companyId: companyId || undefined,
-        projectId: projectId || undefined,
+        companyIds: checkedCompanyIds,
+        projectIds: checkedProjectIds,
+        privateClientIds: checkedPrivateClientIds,
       });
       setReport(json || { rows: [] });
     } catch {
@@ -116,18 +215,27 @@ const [to, setTo] = useState(() => today());
     } finally {
       setLoading(false);
     }
-  }, [headers, baseReportUrl, from, to, selectedCompanyName, selectedProjectName , companyId, projectId]);
+  }, [headers, baseReportUrl, from, to, checkedCompanyIds, checkedProjectIds, checkedPrivateClientIds]);
+
+  // Auto-refresh: the table stays in sync with whatever is currently
+  // checked, rather than requiring a manual click after every change.
+  // Debounced so rapidly ticking several checkboxes doesn't fire a request
+  // per click. Gated on optionsReady so it doesn't fire mid-load, when a
+  // not-yet-loaded section would look like "explicitly selected nothing".
+  useEffect(() => {
+    if (!optionsReady) return;
+    const t = setTimeout(() => { loadReport(); }, 350);
+    return () => clearTimeout(t);
+  }, [optionsReady, loadReport]);
 
   const openJson = useCallback(async () => {
     try {
       const blob = await fetchReportBlob(headers, baseReportUrl, {
         from: from || undefined,
         to: to || undefined,
-        companyName: selectedCompanyName || undefined,
-        projectName: selectedProjectName || undefined,
-        companyId: companyId || undefined,
-        projectId: projectId || undefined,
-
+        companyIds: checkedCompanyIds,
+        projectIds: checkedProjectIds,
+        privateClientIds: checkedPrivateClientIds,
       });
       const url = URL.createObjectURL(blob);
       window.open(url, "_blank");
@@ -135,17 +243,16 @@ const [to, setTo] = useState(() => today());
     } catch {
       alert("שגיאה בטעינת הדוח");
     }
-  }, [headers, baseReportUrl, from, to, selectedCompanyName, selectedProjectName , companyId, projectId]);
+  }, [headers, baseReportUrl, from, to, checkedCompanyIds, checkedProjectIds, checkedPrivateClientIds]);
 
 const downloadXlsx = useCallback(async () => {
   try {
     const blob = await fetchReportBlob(headers, baseReportUrl, {
       from: from || undefined,
       to: to || undefined,
-      companyName: selectedCompanyName || undefined,
-      projectName: selectedProjectName || undefined,
-      companyId: companyId || undefined,
-      projectId: projectId || undefined,
+      companyIds: checkedCompanyIds,
+      projectIds: checkedProjectIds,
+      privateClientIds: checkedPrivateClientIds,
       format: "csv",
     });
 
@@ -213,15 +320,16 @@ const downloadXlsx = useCallback(async () => {
       to:   { row: 1, column: Math.max(...aoa.map(r => r.length)) },
     };
 
-    const companyPart =
-    companyId
-      ? `חברה-${safe(selectedCompanyName)}`
-      : "כל-החברות";
+    const companyNames = checkedCompanyIds
+      .map((id) => companies.find((c) => c.id === id)?.name)
+      .filter(Boolean) as string[];
+    const privateNames = checkedPrivateClientIds
+      .map((id) => privateClients.find((c) => c.id === id)?.name)
+      .filter(Boolean) as string[];
 
-  const projectPart =
-    projectId
-      ? `פרויקט-${safe(selectedProjectName)}`
-      : "כל-הפרויקטים";
+    const companyPart = companyNames.length ? `חברות-${safe(companyNames.join("_"))}` : "";
+    const privatePart = privateNames.length ? `${safe(PRIVATE_LABEL)}-${safe(privateNames.join("_"))}` : "";
+    const allPart = (!companyPart && !privatePart) ? "כל-הנתונים" : "";
 
   const datePart =
     from || to
@@ -231,7 +339,8 @@ const downloadXlsx = useCallback(async () => {
   const fileName = [
     "דוח",
     companyPart,
-    projectPart,
+    privatePart,
+    allPart,
     datePart,
   ]
     .filter(Boolean)
@@ -250,13 +359,20 @@ const downloadXlsx = useCallback(async () => {
       console.error(e);
       alert("שגיאה בייצוא XLSX");
     }
-  }, [headers, baseReportUrl, from, to, selectedCompanyName, selectedProjectName , companyId, projectId]);
+  }, [headers, baseReportUrl, from, to, checkedCompanyIds, checkedProjectIds, checkedPrivateClientIds, companies, privateClients]);
 
   return {
-    // options + selected IDs
-    companies, projects, allProjects,
-    companyId, setCompanyId,
-    projectId, setProjectId,
+    // options
+    companies, allProjects, projectsByCompany, privateClients,
+
+    // company/project tree
+    checkedCompanyIds, checkedProjectIds,
+    companyState, toggleCompany, toggleProject,
+    masterCompanyState, toggleAllCompanies,
+
+    // private clients
+    checkedPrivateClientIds, togglePrivateClient,
+    masterPrivateState, toggleAllPrivateClients,
 
     // filters
     from, setFrom, to, setTo,

@@ -103,10 +103,11 @@ export default function WorkerProfileModal({
     }
   }
   function logoutWorker() {
-  localStorage.removeItem("workerToken");
-  localStorage.removeItem("workerId");
-  onClose();
-  window.location.reload(); // force redirect to login screen
+    localStorage.removeItem("workerToken");
+    localStorage.removeItem("workerId");
+    localStorage.removeItem("surveyId");
+    onClose();
+    window.location.href = "/"; // navigate straight to login instead of reloading the current survey URL
   }
 
   return (

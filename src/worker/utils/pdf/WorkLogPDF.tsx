@@ -140,6 +140,9 @@ export type WorkLogForm = {
   company: string;
   projectId?: string;
   project: string;
+  isPrivate?: boolean;
+  privateClientId?: string;
+  privateClientName?: string;
   manager: string;
   dayType?: "full" | "half";
   teamLead: string;
@@ -315,10 +318,19 @@ const dayColor = form.dayType === "half" ? "#F59E0B" : "#059669"; // amber / eme
 
 
 
-        {/* Company */}
-        <Text style={styles.sectionTitle}>פרטי החברה</Text>
-        <FieldRTL label="חברה" value={form.company} />
-        <FieldRTL label="פרויקט" value={form.project} />
+        {/* Company / private client */}
+        {form.isPrivate ? (
+          <>
+            <Text style={styles.sectionTitle}>שירות פרטי</Text>
+            <FieldRTL label="שם לקוח" value={form.privateClientName || ""} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.sectionTitle}>פרטי החברה</Text>
+            <FieldRTL label="חברה" value={form.company} />
+            <FieldRTL label="פרויקט" value={form.project} />
+          </>
+        )}
         <FieldRTL label="מנהל עבודה" value={form.manager} />
 
         {/* Team */}

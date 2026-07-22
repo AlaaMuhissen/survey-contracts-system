@@ -35,8 +35,14 @@ export default function WorklogTable({
 
             {/* Key info */}
             <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-[13px]">
-              <InfoRow label="חברה" value={w.company} />
-              <InfoRow label="פרויקט" value={w.project} />
+              {w.isPrivate ? (
+                <InfoRow label="שירות פרטי" value={w.privateClientName} className="sm:col-span-2" />
+              ) : (
+                <>
+                  <InfoRow label="חברה" value={w.company} />
+                  <InfoRow label="פרויקט" value={w.project} />
+                </>
+              )}
               <InfoRow label="מיקום" value={w.address} />
               <InfoRow label="ראש צוות" value={w.teamLead} />
               <InfoRow label="תאריך" value={date} />
@@ -104,12 +110,14 @@ export default function WorklogTable({
               const ms = tsToMs(w.createdAt);
               const d = ms ? new Date(ms).toLocaleDateString("he-IL") : "";
               const tone = w.dayType === "half" ? "amber" : "green";
+              const companyLabel = w.isPrivate ? "שירות פרטי" : w.company;
+              const projectLabel = w.isPrivate ? w.privateClientName : w.project;
   
               return (
                 <tr key={w.id} className="border-t hover:bg-emerald-50 transition-colors">
                   <td className="p-3 font-mono tabular-nums text-black/80">{w.number}</td>
-                  <td className="p-3 text-black/80">{w.company || <MutedDash />}</td>
-                  <td className="p-3 text-black/80">{w.project || <MutedDash />}</td>
+                  <td className="p-3 text-black/80">{companyLabel || <MutedDash />}</td>
+                  <td className="p-3 text-black/80">{projectLabel || <MutedDash />}</td>
                   <td className="p-3 text-black/80">{w.address || <MutedDash />}</td>
                   <td className="p-3 text-black/80">{w.teamLead || <MutedDash />}</td>
                   <td className="p-3"><Badge tone={tone as any}>{w.dayType === "half" ? "חצי יום" : "יום מלא"}</Badge></td>

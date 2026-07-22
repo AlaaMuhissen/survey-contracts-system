@@ -9,7 +9,6 @@ export default function ReportsTable({
   rows: ReportRow[];
   loading: boolean;
 }) {
-    const count = rows[0]?.pdfUrls?.length || 0;
     const downloadPdfsZip = useCallback(async (r: ReportRow) => {
     try {
       const urls = r.pdfUrls || [];
@@ -63,12 +62,14 @@ export default function ReportsTable({
               <TH>חצי</TH>
               <TH>סה״כ שעות</TH>
               <TH>מחיר כללי</TH>
-              {/* <TH>קבצים</TH> */}
+              <TH>קבצים</TH>
             </tr>
           </thead>
           <tbody>
             {rows.length > 0 ? (
-              rows.map((r, idx) => (
+              rows.map((r, idx) => {
+                const count = r.pdfUrls?.length || 0;
+                return (
                 <tr key={idx} className="border-t text-right hover:bg-neutral-100 transition-colors">
                   <td className="p-2">{r.company}</td>
                   <td className="p-2">{r.project}</td>
@@ -90,10 +91,11 @@ export default function ReportsTable({
                       </button>
                     </td>
                   </tr>
-              ))
+                );
+              })
             ) : (
               <tr>
-                <td className="p-6 text-center text-neutral-500" colSpan={6}>
+                <td className="p-6 text-center text-neutral-500" colSpan={8}>
                   {loading ? "טוען נתונים..." : "אין נתונים לתאריכים/מסננים שנבחרו"}
                 </td>
               </tr>

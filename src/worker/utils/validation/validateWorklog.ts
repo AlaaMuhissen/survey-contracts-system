@@ -3,6 +3,9 @@ type WorkLogForm = {
   company?: string;
   projectId?: string;
   project?: string;
+  isPrivate?: boolean;
+  privateClientId?: string;
+  privateClientName?: string;
   manager?: string;      // “מנהל עבודה”
   teamLead?: string;     // “ראש צוות”
   date?: Date;         // "YYYY-MM-DD"
@@ -17,8 +20,12 @@ export function validateWorklog(form: WorkLogForm) {
 
   // Choose the fields you truly want to require:
   console.log("validateWorklogssss function", { form });
-  if (form.companyId === ''&& form.company === '') errors.company = "חובה לבחור חברה";
-  if (!form.projectId && !form.project) errors.project = "חובה לבחור פרויקט";
+  if (form.isPrivate) {
+    if (!form.privateClientName?.trim()) errors.privateClientName = "חובה למלא שם לקוח";
+  } else {
+    if (form.companyId === ''&& form.company === '') errors.company = "חובה לבחור חברה";
+    if (!form.projectId && !form.project) errors.project = "חובה לבחור פרויקט";
+  }
   if (!form.manager?.trim()) errors.manager = "חובה למלא מנהל עבודה";
   if (!form.teamLead?.trim()) errors.teamLead = "חובה למלא ראש צוות";
   if (!form.date) errors.date = "חובה לבחור תאריך";

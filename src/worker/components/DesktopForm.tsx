@@ -26,6 +26,13 @@ export default function DesktopForm({
   projFromCache,
   refreshProjects,
   onChooseCompany,
+  privateClients,
+  pcLoading,
+  pcOffline,
+  pcFromCache,
+  refreshPrivateClients,
+  onChoosePrivateClient,
+  onToggleMode,
   workDescription,
   selectedWorkDescription,
   setSelectedWorkDescription,
@@ -52,6 +59,13 @@ export default function DesktopForm({
   projFromCache: boolean;
   refreshProjects: () => void;
   onChooseCompany: (companyId: string) => void;
+  privateClients: { id: string; name: string }[];
+  pcLoading: boolean;
+  pcOffline: boolean;
+  pcFromCache: boolean;
+  refreshPrivateClients: () => void;
+  onChoosePrivateClient: (privateClientId: string) => void;
+  onToggleMode: (nextIsPrivate: boolean) => void;
   workDescription: { id: string; name: string }[];
   selectedWorkDescription: string[];
   setSelectedWorkDescription: React.Dispatch<React.SetStateAction<string[]>>;
@@ -112,10 +126,64 @@ export default function DesktopForm({
 
             </div>
 
-            <div className="mb-1 font-semibold">פרטי החברה</div>
+            <div className="mb-1 font-semibold flex items-center justify-between print:hidden">
+              <span>{form.isPrivate ? "שירות פרטי" : "פרטי החברה"}</span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => onToggleMode(false)}
+                  className={
+                    "text-xs rounded-lg border px-3 py-1 " +
+                    (!form.isPrivate ? "bg-black/80 text-white" : "hover:bg-neutral-50")
+                  }
+                >
+                  חברה / פרויקט
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onToggleMode(true)}
+                  className={
+                    "text-xs rounded-lg border px-3 py-1 " +
+                    (form.isPrivate ? "bg-black/80 text-white" : "hover:bg-neutral-50")
+                  }
+                >
+                  שירות פרטי
+                </button>
+              </div>
+            </div>
+            <div className="mb-1 font-semibold hidden print:block">
+              {form.isPrivate ? "שירות פרטי" : "פרטי החברה"}
+            </div>
             <div className="grid grid-cols-1 gap-3 mb-4">
             {/* Desktop selectors toolbar (not printed) */}
             <div className="hidden md:flex gap-3 items-end mb-3 print:hidden" dir="rtl">
+            {form.isPrivate ? (
+              <div className="flex-1">
+                <div className="text-sm mb-1 flex items-center justify-between">
+                  <span>שם לקוח</span>
+                  {errors.privateClientName && <div className="text-xs text-red-600 mt-1">{errors.privateClientName}</div>}
+                  <span className="text-xs text-neutral-500">
+                    {pcLoading ? "טוען..." : pcOffline ? "אופליין" : pcFromCache ? "מהזיכרון" : "מעודכן"}
+                  </span>
+                </div>
+                <select
+                  className={"w-full rounded-xl border border-neutral-300 px-3 py-2 bg-white focus:outline-none" + (errors.privateClientName ? " border-red-600" : "")}
+                  value={form.privateClientId || ""}
+                  onChange={(e) => onChoosePrivateClient(e.target.value)}
+                >
+                  <option value="">בחר לקוח קיים...</option>
+                  {privateClients.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                {!pcOffline && (
+                  <button type="button" className="mt-2 text-xs underline" onClick={refreshPrivateClients}>
+                    רענן לקוחות
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
               <div className="flex-1">
                 <div className="text-sm mb-1 flex items-center justify-between">
                   <span>חברה</span>
@@ -169,8 +237,23 @@ export default function DesktopForm({
                 </select>
               
               </div>
+              </>
+            )}
             </div>
 
+            {form.isPrivate && (
+              <Line
+                label="שם לקוח (ל-PDF):"
+                value={form.privateClientName || ""}
+                onChange={(v) => {
+                  setField("privateClientId")("");
+                  setField("privateClientName")(v);
+                }}
+                placeholder="שם הלקוח"
+                required
+                errors={errors.privateClientName}
+              />
+            )}
               <Line
                 label="מנהל עבודה:"
                 value={form.manager}

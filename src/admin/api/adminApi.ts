@@ -1,5 +1,5 @@
 import { API } from "../constants";
-import { Company, Project, ReportResponse } from "../types";
+import { Company, Project, PrivateClient, ReportResponse } from "../types";
 
 
 const base = (sid: string) => `${API.replace(/\/+$/,'')}/surveys/${encodeURIComponent(sid)}`;
@@ -71,14 +71,15 @@ export async function fetchProjects(headers: HeadersLike, companyId?: string , s
   return (j.rows || []) as Project[];
 }
 
-// Build the URL server expects (filters by NAME for company/project)
+// Build the URL server expects
 export function buildReportUrl(base: string, params: {
   from?: string;
   to?: string;
   companyName?: string;
   projectName?: string;
-  companyId?: string;
-  projectId?: string;
+  companyIds?: string[];
+  projectIds?: string[];
+  privateClientIds?: string[];
   format?: "csv";
 }) {
   const qs = new URLSearchParams();
@@ -86,6 +87,9 @@ export function buildReportUrl(base: string, params: {
   if (params.to) qs.set("to", params.to);
   if (params.companyName) qs.set("company", params.companyName);
   if (params.projectName) qs.set("project", params.projectName);
+  if (params.companyIds !== undefined) qs.set("companyIds", params.companyIds.join(","));
+  if (params.projectIds !== undefined) qs.set("projectIds", params.projectIds.join(","));
+  if (params.privateClientIds !== undefined) qs.set("privateClientIds", params.privateClientIds.join(","));
   if (params.format) qs.set("format", params.format);
   return `${base}?${qs.toString()}`;
 }
@@ -93,7 +97,7 @@ export function buildReportUrl(base: string, params: {
 export async function fetchReportCompanyProjectDays(
   headers: HeadersLike,
   baseUrl: string,
-  params: { from?: string; to?: string; companyName?: string; projectName?: string , companyId?: string; projectId?: string  }
+  params: { from?: string; to?: string; companyName?: string; projectName?: string; companyIds?: string[]; projectIds?: string[]; privateClientIds?: string[] }
 ) {
   const url = buildReportUrl(baseUrl, params);
   const r = await fetch(url, { headers });
@@ -106,7 +110,7 @@ export async function fetchReportCompanyProjectDays(
 export async function fetchReportBlob(
   headers: HeadersLike,
   baseUrl: string,
-  params: { from?: string; to?: string; companyName?: string; projectName?: string; companyId?: string; projectId?: string; format?: "csv" }
+  params: { from?: string; to?: string; companyName?: string; projectName?: string; companyIds?: string[]; projectIds?: string[]; privateClientIds?: string[]; format?: "csv" }
 ) {
   const url = buildReportUrl(baseUrl, params);
   const r = await fetch(url, { headers });
@@ -170,6 +174,48 @@ export async function deleteCompany(surveyId: string, headers: Record<string,str
 
   if (res.status === 401) localStorage.removeItem("adminToken");
   if (!res.ok) throw new Error("deleteCompany failed");
+}
+
+export async function getPrivateClients(surveyId: string, headers: Record<string,string>) {
+  const res = await fetch(`${base(surveyId)}/private-clients`, { headers });
+  if (res.status === 401) localStorage.removeItem("adminToken");
+  const data = await res.json();
+  return (data.items || []) as PrivateClient[];
+}
+
+export async function createPrivateClient(
+  surveyId: string,
+  headers: Record<string,string>,
+  name: string,
+  price?: number,
+  extra?: { address?: string; phone?: string; email?: string }
+) {
+  const res = await fetch(`${base(surveyId)}/private-clients`, {
+    method: "POST", headers, body: JSON.stringify({ name, price, ...extra }),
+  });
+  if (res.status === 401) localStorage.removeItem("adminToken");
+  if (!res.ok) throw new Error("createPrivateClient failed");
+}
+
+export async function updatePrivateClient(
+  surveyId: string,
+  privateClientId: string,
+  headers: Record<string, string>,
+  data: { name?: string; price?: number; active?: boolean; address?: string; phone?: string; email?: string }
+) {
+  const res = await fetch(`${base(surveyId)}/private-clients/${privateClientId}`, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify(data),
+  });
+  if (res.status === 401) localStorage.removeItem("adminToken");
+  if (!res.ok) throw new Error("updatePrivateClient failed");
+}
+
+export async function deletePrivateClient(surveyId: string, headers: Record<string,string>, id: string) {
+  const res = await fetch(`${base(surveyId)}/private-clients/${id}`, { method: "DELETE", headers });
+  if (res.status === 401) localStorage.removeItem("adminToken");
+  if (!res.ok) throw new Error("deletePrivateClient failed");
 }
 
 export async function createProject(

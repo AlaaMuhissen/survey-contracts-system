@@ -2,6 +2,19 @@ import { useNavigate } from "react-router-dom";
 import { generateWorkLogPdfBlob } from "../utils/pdf/WorkLogPDF";
 import { sendOrQueue } from "../utils/queue/sendOrQueue";
 import { validateWorklog } from "../utils/validation/validateWorklog";
+import { slugify } from "../utils/slugify";
+
+// PLACEHOLDER: the upload endpoint is keyed by companyId/projectId in the URL
+// path. Private-service logs have neither, so until there's a dedicated
+// backend route we route them through the same endpoint with a fixed
+// companyId of "private" and the client's id (or a slug of their typed name)
+// as the projectId. Swap this out once the backend has a real route.
+const apiIdsFor = (form: any) => ({
+  companyId: form.isPrivate ? "private" : form.companyId,
+  projectId: form.isPrivate
+    ? form.privateClientId || slugify(form.privateClientName)
+    : form.projectId,
+});
 
 const saveToFirebase = async (
   form: any,
@@ -38,12 +51,13 @@ const saveToFirebase = async (
 
   // 3) Offline path
   if (!navigator.onLine) {
+    const { companyId, projectId } = apiIdsFor(form);
     const { queued } = await sendOrQueue(
       { ...form, number: "00000" },
       null, // <- no pdf yet
       surveyId,
-      form.companyId,
-      form.projectId,
+      companyId,
+      projectId,
       { sigManager, sigLead, sigMeta } // keep signatures to build later
     );
 
@@ -82,7 +96,8 @@ const saveToFirebase = async (
   console.log("pdfBlob for the online", pdfBlob);
   const sigPack = { sigManager, sigLead, sigMeta };
   // 7) Upload (or queue) with number+seq
-  const { queued } = await sendOrQueue({ ...form, number, seq }, pdfBlob, surveyId, form.companyId, form.projectId, sigPack);
+  const { companyId, projectId } = apiIdsFor(form);
+  const { queued } = await sendOrQueue({ ...form, number, seq }, pdfBlob, surveyId, companyId, projectId, sigPack);
   alert(queued ? "אופליין — נשמר לתור" : "נשמר בהצלחה.");
   resetForm();
 };
