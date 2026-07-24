@@ -15,7 +15,16 @@ type WorkLogForm = {
   notes?: string;
 };
 
-export function validateWorklog(form: WorkLogForm) {
+type SignaturesInput = {
+  sigManager?: any[];
+  sigLead?: any[];
+};
+
+export function validateWorklog(
+  form: WorkLogForm,
+  signatures?: SignaturesInput,
+  opts?: { requireManagerSignature?: boolean }
+) {
   const errors: Record<string, string> = {};
 
   // Choose the fields you truly want to require:
@@ -39,5 +48,41 @@ export function validateWorklog(form: WorkLogForm) {
   // subsequent save with no visible error beyond a red field label.
   if (!form.workDesc?.trim()) errors.workDesc = "חובה לבחור תיאור עבודה";
 
+  // Signatures — optional param so callers that don't pass them (or that
+  // legitimately don't have one yet, e.g. "send for manager signature")
+  // aren't forced into this check.
+  if (signatures) {
+    if (!signatures.sigLead || signatures.sigLead.length === 0) {
+      errors.sigLead = "חובה לחתום כראש צוות";
+    }
+    const requireManager = opts?.requireManagerSignature !== false;
+    if (requireManager && (!signatures.sigManager || signatures.sigManager.length === 0)) {
+      errors.sigManager = "חובה לחתום כמנהל עבודה";
+    }
+  }
+
   return errors;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  company: "חברה",
+  project: "פרויקט",
+  privateClientName: "שם לקוח פרטי",
+  manager: "מנהל עבודה",
+  teamLead: "ראש צוות",
+  date: "תאריך",
+  dayType: "סוג יום",
+  workDesc: "תיאור עבודה",
+  sigManager: "חתימת מנהל",
+  sigLead: "חתימת ראש צוות",
+};
+
+// Turns the errors object from validateWorklog into a readable list of
+// field names for an alert/toast, e.g. "חברה, מנהל עבודה, חתימת ראש צוות"
+// — instead of a generic "something's missing" message that doesn't say
+// what.
+export function describeMissingFields(errs: Record<string, string>): string {
+  return Object.keys(errs)
+    .map((k) => FIELD_LABELS[k] || k)
+    .join(", ");
 }

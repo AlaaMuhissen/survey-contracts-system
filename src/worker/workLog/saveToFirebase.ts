@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { generateWorkLogPdfBlob } from "../utils/pdf/WorkLogPDF";
 import { sendOrQueue } from "../utils/queue/sendOrQueue";
-import { validateWorklog } from "../utils/validation/validateWorklog";
+import { validateWorklog, describeMissingFields } from "../utils/validation/validateWorklog";
 import { slugify } from "../utils/slugify";
 
 // PLACEHOLDER: the upload endpoint is keyed by companyId/projectId in the URL
@@ -41,9 +41,12 @@ const saveToFirebase = async (
   }
 
   // 1) Validate
-  const errs = validateWorklog(form);
+  const errs = validateWorklog(form, { sigManager, sigLead });
   setErrors(errs);
-  if (Object.keys(errs).length > 0) return;
+  if (Object.keys(errs).length > 0) {
+    alert(`חסרים השדות הבאים: ${describeMissingFields(errs)}`);
+    return;
+  }
 
   // 2) Let React flush pending state
   await new Promise<void>(r => requestAnimationFrame(() => r()));

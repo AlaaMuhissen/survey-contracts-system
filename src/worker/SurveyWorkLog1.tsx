@@ -1,5 +1,5 @@
-
-import  {useState ,useEffect, use} from "react";
+import  {useState ,useEffect, useRef, use} from "react";
+import { createPortal } from "react-dom";
 import {setupOnlineDrain } from "./utils/queue/sendOrQueue";
 import { Stroke, SigMeta } from "./components/SignaturePad";
 import {WorkLogForm } from "./utils/pdf/WorkLogPDF";
@@ -15,7 +15,11 @@ import saveToFirebase from "./workLog/saveToFirebase";
 import downloadVectorPDF from "./workLog/downloadVectorPDF";
 import sendWhatsApp from "./workLog/sendWhatsApp";
 import sendEmail from "./workLog/sendEmail";
+import { sendForManagerSignature, buildManagerSignLink, openWhatsAppWithLink } from "./workLog/sendForManagerSignature";
+import { validateWorklog, describeMissingFields } from "./utils/validation/validateWorklog";
+import PrintCSS from "./utils/pdf/PrintCSS";
 import WorkerProfileModal from "./workLog/WorkerProfileModal";
+import FieloStartLoginPage from "../FieloStartLoginPage";
 import { loadWorkerFromCache, saveWorkerToCache } from "../data/WorkerStore";
 
 const API_BASE = process.env.BACKEND_URL || "https://survey-contracts-system-backend.onrender.com";
@@ -28,11 +32,15 @@ export default function SurveyWorkLog1() {
   const [moreOpen, setMoreOpen] = useState(false);
   const { surveyId: surveyIdParam = "" } = useParams<{ surveyId: string }>();
   const [surveyId, setSurveyId] = useState<string>(surveyIdParam || localStorage.getItem("surveyId") || "");
-  const [workerId, ] = useState<string>(localStorage.getItem("workerId") || "");
+  const [workerId, setWorkerId] = useState<string>(localStorage.getItem("workerId") || "");
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // Tracks the pending-signature token (if any) this form was restored
+  // from, so it can be cleaned up only once the worklog is actually saved/
+  // sent — not the moment the worker opens it to keep filling it in.
+  const restoredPendingTokenRef = useRef<string | null>(null);
   const [profileModalOpen, setProfileModalOpen] = useState(false);
   const nav = useNavigate();
-  const [, setSynced] = useState<any[]>([]);
+  const [synced, setSynced] = useState<any[]>([]);
   const workerName = localStorage.getItem("workerName") || "";
   //const workDescription =  [ "אזמיד" ,"סימון גובה" , "סימון גדר", "סימון אש", "סימון קומה"] 
   const workDescription = [
@@ -101,9 +109,62 @@ export default function SurveyWorkLog1() {
     setSigLead([]);
     setSigMeta({ w: 600, h: 120 });
     setSelectedWorkDescription([]);
+
+    // This form is actually done (saved/downloaded/sent) — now it's safe
+    // to remove the pending-signature record it came from, if any.
+    const pendingToken = restoredPendingTokenRef.current;
+    if (pendingToken) {
+      restoredPendingTokenRef.current = null;
+      const t = localStorage.getItem("workerToken");
+      fetch(`${API_BASE}/surveys/${encodeURIComponent(surveyId)}/pending-signatures/${pendingToken}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${t}` },
+      }).catch(() => {});
+    }
   };
 
   const isDesktop = useIsDesktop();
+
+  // If the worker navigated here from the pending-signatures list after a
+  // manager signed remotely, restore that exact form + both signatures so
+  // they can review and do the final submit.
+  useEffect(() => {
+    const raw = localStorage.getItem("restoreSignedWorklog");
+    if (!raw) return;
+    localStorage.removeItem("restoreSignedWorklog");
+    try {
+      const {
+        token: pendingToken,
+        formSnapshot,
+        sigManager: restoredSigManager,
+        sigLead: restoredSigLead,
+        sigMeta: restoredSigMeta,
+      } = JSON.parse(raw);
+      if (pendingToken) restoredPendingTokenRef.current = pendingToken;
+      if (formSnapshot) {
+        setForm((s) => ({
+          ...s,
+          ...formSnapshot,
+          date: formSnapshot.date ? new Date(formSnapshot.date) : s.date,
+        }));
+        // RegularForm/DesktopForm derive form.workDesc from
+        // selectedWorkDescription via their own effect — without restoring
+        // the matching checkbox ids here too, that effect fires right
+        // after this and overwrites the restored workDesc back to "".
+        if (typeof formSnapshot.workDesc === "string" && formSnapshot.workDesc.trim()) {
+          const names = formSnapshot.workDesc.split(",").map((s: string) => s.trim());
+          const ids = workDescription.filter((w) => names.includes(w.name)).map((w) => w.id);
+          if (ids.length) setSelectedWorkDescription(ids);
+        }
+      }
+      if (Array.isArray(restoredSigManager)) setSigManager(restoredSigManager);
+      if (Array.isArray(restoredSigLead)) setSigLead(restoredSigLead);
+      if (restoredSigMeta) setSigMeta(restoredSigMeta);
+    } catch (e) {
+      console.error("restoreSignedWorklog parse failed:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
@@ -239,71 +300,159 @@ export default function SurveyWorkLog1() {
 
   const printPage = () => window.print();
 
+  const handleSendForSignature = async () => {
+    const errs = validateWorklog(form, { sigManager, sigLead }, { requireManagerSignature: false });
+    setErrors(errs);
+    if (Object.keys(errs).length > 0) {
+      alert(`חסרים השדות הבאים: ${describeMissingFields(errs)}`);
+      return;
+    }
+    try {
+      const token = await sendForManagerSignature(form, sigLead, sigMeta, surveyId, API_BASE);
+      const link = buildManagerSignLink(surveyId, token);
+      openWhatsAppWithLink(link);
+      resetForm();
+    } catch (e) {
+      console.error("sendForManagerSignature failed:", e);
+      alert("שגיאה בשליחה לחתימת מנהל");
+    }
+  };
+
  
 
   return (
-    <div className="min-h-screen bg-neutral-100 py-6 print:bg-white">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-50 to-white print:bg-white py-6">
       {/* <PrintCSS /> */}
       <div className="mx-auto max-w-[900px] px-3">
 
     {isDesktop ? (
       <>
-      <div className="flex justify-between items-center   w-full print:hidden ">
-      <div className=" flex justify-between items-center print:hidden">
-        <h1 className="text-xl font-semibold">
-          יומן עבודה – טופס מדידות
-        </h1>
+      <div className="flex justify-between items-center w-full print:hidden mb-4">
+        <div className="flex items-center gap-2.5">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shrink-0">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" />
+              <path d="M9 13h6M9 17h4" />
+            </svg>
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-black/85 leading-tight">יומן עבודה</h1>
+            <p className="text-xs text-neutral-500">טופס מדידות</p>
+          </div>
+        </div>
+
+        <button
+          onClick={() => setProfileModalOpen && setProfileModalOpen(true)}
+          className="shrink-0 h-12 w-12 rounded-full flex justify-center items-center font-bold transition
+          bg-gradient-to-br from-violet-600 to-indigo-600 hover:brightness-105 text-white shadow-sm cursor-pointer"
+        >
+          {form.teamLead ? form.teamLead.charAt(0) : "—"}
+        </button>
       </div>
-      <div className="flex items-center justify-between pt-3 pl-3 print:hidden">
+
+      <div className="rounded-2xl border bg-white shadow-sm p-3 mb-5 print:hidden">
+        <div className="flex flex-wrap items-center gap-2">
           <button
-           disabled={!coOffline}
-           onClick={() => setProfileModalOpen && setProfileModalOpen(true)}
-          className={`shrink-0 h-16 w-16 rounded-full mb-2
-          flex justify-center items-center font-bold transition
-          ${coOffline 
-            ? "bg-purple-400 hover:bg-purple-500 text-white cursor-pointer"
-            : "bg-gray-300 text-gray-500 cursor-not-allowed opacity-60"
-          }`}
+            onClick={printPage}
+            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm text-black/70 hover:bg-neutral-50 transition"
           >
-            {form.teamLead ? form.teamLead.charAt(0) : "—"}
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <path d="M6 9V3h12v6" /><rect x="6" y="13" width="12" height="8" />
+              <path d="M4 9h16a2 2 0 0 1 2 2v5h-4M2 16v-5a2 2 0 0 1 2-2" />
+            </svg>
+            הדפס
           </button>
 
-      </div>
+          <button
+            onClick={() => downloadVectorPDF(form, setForm, setErrors, sigManager, sigLead, sigMeta, surveyId, resetForm, API_BASE, nav)}
+            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm text-black/70 hover:bg-neutral-50 transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M5 21h14" />
+            </svg>
+            הורד PDF
+          </button>
 
-       </div>
-      <div className="flex gap-2 mb-4">
+          <button
+            onClick={() => sendWhatsApp(form, setForm, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm, API_BASE, nav)}
+            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm text-black/70 hover:bg-neutral-50 transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="text-emerald-600">
+              <path d="M21 11.5a8.5 8.5 0 1 1-3.8-7.1L21 3l-1 3.6a8.5 8.5 0 0 1 1 4.9z" />
+              <path d="M8.5 10.5c.3 2 2.2 3.9 4.2 4.2" />
+            </svg>
+            וואטסאפ
+          </button>
 
-        <AsyncButton onClick={printPage} >
-          הדפס
-        </AsyncButton>
-        <AsyncButton onClick={() => downloadVectorPDF(form, setForm, setErrors, sigManager, sigLead, sigMeta, surveyId, resetForm, API_BASE, nav)} >
-          הורד PDF
-        </AsyncButton>
-        <AsyncButton onClick={() => sendWhatsApp(form, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm)} >
-          שלח בוואטסאפ
-        </AsyncButton>
-        <AsyncButton onClick={() => sendEmail(form, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm)} >
-          שלח במייל
-        </AsyncButton>
-        <AsyncButton 
-          onClick={() =>
-              saveToFirebase(
-                form,
-                setForm,
-                setErrors,
-                sigManager,
-                sigLead,
-                sigMeta,
-                surveyId,
-                resetForm,
-                API_BASE,
-                nav
-              )
-            }>
-          שמור
-        </AsyncButton>
+          <button
+            onClick={() => sendEmail(form, setForm, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm, API_BASE, nav)}
+            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm text-black/70 hover:bg-neutral-50 transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <rect x="3" y="5" width="18" height="14" rx="2" /><path d="M3 7l9 6 9-6" />
+            </svg>
+            מייל
+          </button>
+
+          {sigManager.length === 0 && (
+            <button
+              onClick={handleSendForSignature}
+              className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-sm font-medium text-white
+                         bg-gradient-to-l from-violet-600 to-indigo-600 shadow-sm hover:brightness-105 transition"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+              </svg>
+              שלח לחתימת מנהל
+            </button>
+          )}
+
+          <div className="w-px h-6 bg-neutral-200 mx-1" />
+
+          {/* <button
+            onClick={() => nav(`/${encodeURIComponent(surveyId)}/pending-signatures`)}
+            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm text-black/70 hover:bg-neutral-50 transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+              <rect x="9" y="3" width="6" height="4" rx="1" /><path d="M9 13l2 2 4-4" />
+            </svg>
+            בקשות חתימה
+          </button>
+
+          <button
+            onClick={() => nav(`/${encodeURIComponent(surveyId)}/my-worklogs`)}
+            className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm text-black/70 hover:bg-neutral-50 transition"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+              <path d="M3 7l3-3h5l2 2h8v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+            </svg>
+            היומנים שלי
+          </button> */}
+
+          <div className="grow" />
+
+          <AsyncButton
+            className="!bg-black !text-white hover:!bg-black/85 !border-black !px-5"
+            onClick={() =>
+                saveToFirebase(
+                  form,
+                  setForm,
+                  setErrors,
+                  sigManager,
+                  sigLead,
+                  sigMeta,
+                  surveyId,
+                  resetForm,
+                  API_BASE,
+                  nav
+                )
+              }>
+            שמור
+          </AsyncButton>
+        </div>
       </div>
-     
       </>
     ) : <div className="md:hidden fixed inset-x-0 bottom-0 z-50">
       <div className="mx-auto max-w-[900px] px-3 pb-[calc(env(safe-area-inset-bottom)+8px)]">
@@ -336,56 +485,88 @@ export default function SurveyWorkLog1() {
           </button>
         </div>
       </div>
-      {moreOpen && (
-        <div className="fixed inset-0 z-50 " onClick={() => setMoreOpen(false)}>
-          {/* רקע כהה */}
-          <div className="absolute inset-0 bg-black/40 mt-16" />
+      {moreOpen && createPortal(
+        <div className="fixed inset-0 z-50" dir="rtl" onClick={() => setMoreOpen(false)}>
+          <div className="absolute inset-0 bg-black/50" />
 
-          {/* מגירה מלמטה */}
           <div
-            className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white p-16 border "
+            className="absolute inset-x-0 bottom-0 rounded-t-3xl bg-white shadow-2xl
+                       px-5 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="mx-auto mb-3 h-1 w-12 rounded-full bg-neutral-300" />
-            <div className="grid grid-cols-2 gap-3 text-right" dir="rtl">
-             <AsyncButton
+            <div className="mx-auto mb-4 h-1 w-12 rounded-full bg-neutral-300" />
+
+            <div className="grid grid-cols-2 gap-2.5">
+              <AsyncButton
                 onClick={() => { setMoreOpen(false); downloadVectorPDF(form, setForm, setErrors, sigManager, sigLead, sigMeta, surveyId, resetForm, API_BASE, nav); }}
-                className="h-12 rounded-xl border active:scale-[0.99]"
+                className="flex-col h-auto py-4 gap-1.5 rounded-2xl border bg-neutral-50 text-black/70 hover:bg-neutral-100"
               >
-                הורד PDF
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="text-indigo-600">
+                  <path d="M12 3v12m0 0l-4-4m4 4l4-4" /><path d="M5 21h14" />
+                </svg>
+                <span className="text-xs font-medium">הורד PDF</span>
               </AsyncButton>
+
               <AsyncButton
-                onClick={() => { setMoreOpen(false); sendWhatsApp(form, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm); }}
-                className="h-12 rounded-xl border active:scale-[0.99]"
+                onClick={() => { setMoreOpen(false); sendWhatsApp(form, setForm, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm, API_BASE, nav); }}
+                className="flex-col h-auto py-4 gap-1.5 rounded-2xl border bg-neutral-50 text-black/70 hover:bg-neutral-100"
               >
-                שלח בוואטסאפ
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="text-emerald-600">
+                  <path d="M21 11.5a8.5 8.5 0 1 1-3.8-7.1L21 3l-1 3.6a8.5 8.5 0 0 1 1 4.9z" />
+                  <path d="M8.5 10.5c.3 2 2.2 3.9 4.2 4.2" />
+                </svg>
+                <span className="text-xs font-medium">שלח בוואטסאפ</span>
               </AsyncButton>
+
               <AsyncButton
-                onClick={() => { setMoreOpen(false); sendEmail(form, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm)}}
-                className="h-12 rounded-xl border active:scale-[0.99]"
+                onClick={() => { setMoreOpen(false); sendEmail(form, setForm, setErrors , sigManager, sigLead, sigMeta, surveyId ,resetForm, API_BASE, nav)}}
+                className="flex-col h-auto py-4 gap-1.5 rounded-2xl border bg-neutral-50 text-black/70 hover:bg-neutral-100"
               >
-                שלח במייל
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="text-indigo-600">
+                  <rect x="3" y="5" width="18" height="14" rx="2" />
+                  <path d="M3 7l9 6 9-6" />
+                </svg>
+                <span className="text-xs font-medium">שלח במייל</span>
               </AsyncButton>
+
               <AsyncButton
                 onClick={() => { setMoreOpen(false); printPage(); }}
-                className="h-12 rounded-xl border active:scale-[0.99]"
+                className="flex-col h-auto py-4 gap-1.5 rounded-2xl border bg-neutral-50 text-black/70 hover:bg-neutral-100"
               >
-                הדפס
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="text-indigo-600">
+                  <path d="M6 9V3h12v6" /><rect x="6" y="13" width="12" height="8" />
+                  <path d="M4 9h16a2 2 0 0 1 2 2v5h-4M2 16v-5a2 2 0 0 1 2-2" />
+                </svg>
+                <span className="text-xs font-medium">הדפס</span>
               </AsyncButton>
+
+              {sigManager.length === 0 && (
+                <AsyncButton
+                  onClick={() => { setMoreOpen(false); handleSendForSignature(); }}
+                  className="col-span-2 h-12 rounded-2xl border-0 bg-gradient-to-l from-violet-600 to-indigo-600 text-white shadow-md hover:brightness-105"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
+                    <path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
+                  </svg>
+                  <span className="text-sm font-medium">שלח לחתימת מנהל</span>
+                </AsyncButton>
+              )}
             </div>
 
             <button
               onClick={() => setMoreOpen(false)}
-              className="mt-4 w-full h-11 rounded-xl bg-red-500 text-white text-center"
+              className="w-full flex items-center justify-center mt-3 gap-2 h-12 rounded-xl
+                       bg-red-50 text-red-600 font-medium hover:bg-red-100 active:scale-[0.98] transition"
             >
               סגור
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>}
 
-     {profileModalOpen && !coOffline && (
+     {profileModalOpen && (
         <WorkerProfileModal
           onClose={() => setProfileModalOpen(false)}
           form={form}
@@ -463,7 +644,3 @@ export default function SurveyWorkLog1() {
         </div>
       );
     }
-
-
-
-

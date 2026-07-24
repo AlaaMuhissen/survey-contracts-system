@@ -7,7 +7,11 @@ import ReportsPage from "./admin/pages/ReportPage";
 import SurveyEditPage from "./admin/pages/SurveyEditPage";
 import WorkersPage from "./admin/pages/WorkersPage";
 import WorkerLockScreen from "./worker/pages/WorkerLockScreen";
+import ManagerSignPage from "./worker/pages/ManagerSignPage";
+
 import FieloStartLoginPage from "./FieloStartLoginPage";
+import PendingSignaturesPage from "./worker/pages/Pendingsignaturespage";
+import MyWorklogsPage from "./worker/pages/Myworklogspage";
 
 
 
@@ -22,6 +26,9 @@ import FieloStartLoginPage from "./FieloStartLoginPage";
         {/* Keep root as-is OR also add a survey-scoped variant */}
          <Route path="/" element={<FieloStartLoginPage />} />
         <Route path="/worker/login" element={<WorkerLockScreen />} />
+        <Route path="/:surveyId/sign/:token" element={<ManagerSignPage />} />
+        <Route path="/:surveyId/pending-signatures" element={<PendingSignaturesPage />} />
+        <Route path="/:surveyId/my-worklogs" element={<MyWorklogsPage />} />
         <Route path="/:surveyId" element={<SurveyWorkLog1 />} />
         {/* Example if you want a scoped worklog: */}
         {/* <Route path="/:surveyId/worklog" element={<SurveyWorkLog1 />} /> */}
@@ -69,4 +76,3 @@ import FieloStartLoginPage from "./FieloStartLoginPage";
 }
 
   export default App;
-

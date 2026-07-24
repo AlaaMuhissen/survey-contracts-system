@@ -411,24 +411,34 @@ export default function RegularForm({
         <div className="text-base font-semibold mb-3 text-right">חתימות</div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <SignaturePad
-              strokes={sigManager}
-              setStrokes={setSigManager}
-              setMeta={setSigMeta}
-              height={160}
-            />
+            <div className={errors.sigManager ? "rounded-xl ring-2 ring-red-500" : ""}>
+              <SignaturePad
+                strokes={sigManager}
+                setStrokes={setSigManager}
+                setMeta={setSigMeta}
+                height={160}
+              />
+            </div>
             <div className="h-0 -mt-[1px] border-t border-black/80" />
             <div className="mt-1 text-center text-sm">חתימת מנהל</div>
+            {errors.sigManager && (
+              <div className="text-xs text-red-600 text-center mt-0.5">{errors.sigManager}</div>
+            )}
           </div>
           <div>
-            <SignaturePad
-              strokes={sigLead}
-              setStrokes={setSigLead}
-              setMeta={setSigMeta}
-              height={160}
-            />
+            <div className={errors.sigLead ? "rounded-xl ring-2 ring-red-500" : ""}>
+              <SignaturePad
+                strokes={sigLead}
+                setStrokes={setSigLead}
+                setMeta={setSigMeta}
+                height={160}
+              />
+            </div>
             <div className="h-0 -mt-[1px] border-t border-black/80" />
             <div className="mt-1 text-center text-sm">חתימת ראש צוות</div>
+            {errors.sigLead && (
+              <div className="text-xs text-red-600 text-center mt-0.5">{errors.sigLead}</div>
+            )}
           </div>
         </div>
       </section>

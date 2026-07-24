@@ -61,6 +61,13 @@ export async function sendOrQueue(
 
   const itemId = `${meta.number || "TEMP"}_${Date.now()}`;
 
+  // Stamped once here (the one place every submission path funnels
+  // through) rather than at each call site — used by the "my worklogs"
+  // page to show whether a signature was actually captured, since the
+  // strokes themselves are never stored, only baked into the PDF image.
+  meta.hasManagerSignature = !!sigPack?.sigManager?.length;
+  meta.hasTeamLeadSignature = !!sigPack?.sigLead?.length;
+
   if (!navigator.onLine) {
     await enqueue({
       id: itemId,
